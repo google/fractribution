@@ -1,0 +1,28 @@
+# coding=utf-8
+# Copyright 2020 Google LLC..
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Query the number of marketing events by aggregated by channel, campaign, source and medium.
+#
+# Args:
+#  session_event_log_table: BigQuery table described in session_event_log.sql
+SELECT
+  channel,
+  campaign,
+  source,
+  medium,
+  COUNT(*) AS number_of_events
+FROM `{{session_event_log_table}}`
+GROUP BY channel, campaign, source, medium
+ORDER BY channel, number_of_events DESC
