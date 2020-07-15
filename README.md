@@ -1,4 +1,4 @@
-## Fractribution code base
+# Fractribution code base
 
 ## Attribution Overview
 
@@ -8,9 +8,10 @@ all the credit go to the last ad the user saw, or the first ad? Or should all
 the ads share in the credit equally.
 
 ## Data-driven attribution (DDA)
-DDA attempts to work out a fair weighing of credit among marketing channels. For
-example, a particular display ad might not convert immediately, but users who
-click the display ad might be much more likely to convert later on. In this
+
+DDA attempts to work out a fair weighting of credit among marketing channels.
+For example, a particular display ad might not convert immediately, but users
+who click the display ad might be much more likely to convert later on. In this
 case, the display ad should get credit, even though it may not be the first or
 last ad on a user's path to conversion. Google Marketing Platform products
 includes DDA as an option.
@@ -37,10 +38,8 @@ an end-to-end BigQuery and analytics pipeline.
 This stage runs a simplified Shapley Value DDA algorithm over the data prepared
 in Stage 1 to generate the fractional attribution values.
 
-To use Fractribution, either:
-
-* Install the source code as a Cloud Function on GCP, or
-* Deploy the Fractribution Docker image on GCP.
+For more instructions, including a tutorial for running Fractribution over
+sample GA360 data from the Google Merchandise Store, from see py/README.md.
 
 ## Directory structure
 

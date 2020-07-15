@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Query the number of marketing events by aggregated by channel, campaign, source and medium.
+# Query the number of marketing events, aggregated by channel, campaign, source and medium.
 #
 # Args:
 #  session_event_log_table: BigQuery table described in session_event_log.sql
