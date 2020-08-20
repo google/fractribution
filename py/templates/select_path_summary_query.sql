@@ -13,4 +13,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-SELECT * FROM `{{path_summary_table}}`
+SELECT transformedPath, conversions, nonConversions, revenue FROM `{{path_summary_table}}`

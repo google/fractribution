@@ -20,13 +20,9 @@
 import json
 import logging
 import os
-import sys
 import time
-
-sys.path.append("./fractribution_model/")
-from fractribution_data import main as data_main
 import googleapiclient.discovery
-import main as model_main
+import main
 import requests
 
 import google.cloud.logging
@@ -40,13 +36,8 @@ param = json.loads(os.environ["fractribution_param"])
 logging.info("Start Fractribution")
 logging.info(param)
 try:
-  data_main.set_report_window(param)
-  data_main.PrepareInputForFractributionCustomEndpoint(param).run()
-  logging.info("Fractribution Data : Done!")
-  res = model_main.execute(param)
-  logging.info("Fractribution Model : Done!")
-  logging.info(res)
-
+  main.run(param)
+  logging.info("Fractribution Done!")
   logging.info("Shutting down.....")
   headers = {"Metadata-Flavor": "Google"}
   meta_response = requests.get(

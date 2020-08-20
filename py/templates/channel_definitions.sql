@@ -14,36 +14,40 @@
 # limitations under the License.
 
 # SQL mapping from channel definition to channel name.
+-- A final catch-all 'Unmatched_Channel' must be included for unmatched channels.
+-- Note: Channel names become BigQuery column names, so they must consist of letters, numbers and
+--       underscores only. See https://cloud.google.com/bigquery/docs/schemas#column_names for
+--       the full column name specification.
 CASE
   WHEN
     LOWER(trafficSource.medium) IN ('cpc', 'ppc')
     AND REGEXP_CONTAINS(LOWER(trafficSource.campaign), r'brand')
-    THEN 'Paid Search - Brand'
+    THEN 'Paid_Search_Brand'
   WHEN
     LOWER(trafficSource.medium) IN ('cpc', 'ppc')
     AND REGEXP_CONTAINS(LOWER(trafficSource.campaign), r'generic')
-    THEN 'Paid Search - Generic'
+    THEN 'Paid_Search_Generic'
   WHEN
     LOWER(trafficSource.medium) IN ('cpc', 'ppc')
     AND NOT REGEXP_CONTAINS(LOWER(trafficSource.campaign), r'brand|generic')
-    THEN 'Paid Search - Other'
-  WHEN LOWER(trafficSource.medium) = 'organic' THEN 'Organic Search'
+    THEN 'Paid_Search_Other'
+  WHEN LOWER(trafficSource.medium) = 'organic' THEN 'Organic_Search'
   WHEN
     LOWER(trafficSource.medium) IN ('display', 'cpm', 'banner')
     AND REGEXP_CONTAINS(LOWER(trafficSource.campaign), r'prospect')
-    THEN 'Display - Prospecting'
+    THEN 'Display_Prospecting'
   WHEN
     LOWER(trafficSource.medium) IN ('display', 'cpm', 'banner')
     AND REGEXP_CONTAINS(
         LOWER(trafficSource.campaign),
         r'retargeting|re-targeting|remarketing|re-marketing')
-    THEN 'Display - Retargeting'
+    THEN 'Display_Retargeting'
   WHEN
     LOWER(trafficSource.medium) IN ('display', 'cpm', 'banner')
     AND NOT REGEXP_CONTAINS(
         LOWER(trafficSource.campaign),
         r'prospect|retargeting|re-targeting|remarketing|re-marketing')
-    THEN 'Display - Other'
+    THEN 'Display_Other'
   WHEN
     REGEXP_CONTAINS(LOWER(trafficSource.campaign), r'video|youtube')
     OR REGEXP_CONTAINS(LOWER(trafficSource.source), r'video|youtube')
@@ -51,24 +55,24 @@ CASE
   WHEN
     LOWER(trafficSource.medium) = 'social'
     AND REGEXP_CONTAINS(LOWER(trafficSource.campaign), r'prospect')
-    THEN 'Paid Social - Prospecting'
+    THEN 'Paid_Social_Prospecting'
   WHEN
     LOWER(trafficSource.medium) = 'social'
     AND REGEXP_CONTAINS(
         LOWER(trafficSource.campaign),
         r'retargeting|re-targeting|remarketing|re-marketing')
-    THEN 'Paid Social - Retargeting'
+    THEN 'Paid_Social_Retargeting'
   WHEN
     LOWER(trafficSource.medium) = 'social'
     AND NOT REGEXP_CONTAINS(
         LOWER(trafficSource.campaign),
         r'prospect|retargeting|re-targeting|remarketing|re-marketing')
-    THEN 'Paid Social - Other'
+    THEN 'Paid_Social_Other'
   WHEN trafficSource.source = '(direct)' THEN 'Direct'
   WHEN LOWER(trafficSource.medium) = 'referral' THEN 'Referral'
   WHEN LOWER(trafficSource.medium) = 'email' THEN 'Email'
   WHEN
     LOWER(trafficSource.medium) IN ('cpc', 'ppc', 'cpv', 'cpa', 'affiliates')
-    THEN 'Other Advertising'
-  ELSE 'Unmatched Channel'
-END AS channel
+    THEN 'Other_Advertising'
+  ELSE 'Unmatched_Channel'
+END

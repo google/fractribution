@@ -13,16 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Query the number of marketing events, aggregated by channel, campaign, source and medium.
-#
-# Args:
-#  session_event_log_table: BigQuery table described in session_event_log.sql
-SELECT
-  channel,
-  campaign,
-  source,
-  medium,
-  COUNT(*) AS number_of_events
-FROM `{{session_event_log_table}}`
-GROUP BY channel, campaign, source, medium
-ORDER BY channel, number_of_events DESC
+CREATE OR REPLACE TABLE `{{path_summary_table}}` (
+  transformedPath STRING NOT NULL,
+  conversions INT64 NOT NULL,
+  nonConversions INT64 NOT NULL,
+  revenue FLOAT64,
+  {% for channel in channels %}
+  {{channel}} FLOAT64,
+  {% endfor %}
+);

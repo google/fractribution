@@ -1,471 +1,333 @@
-This is a tutorial for how to run Fractribution on a sample GA360 dataset. We
-recommend running through the tutorial on the sample dataset to verify that your
-installation is working before tackling your own data.
+## Setting up Fractribution:
 
-The sample dataset comes from the Google Merchandise store, a real ecommerce
-store (see
-[here](https://support.google.com/analytics/answer/7586738?hl=en) for more
-details). You can view the publicly-available, obfuscated data on BigQuery [here](https://bigquery.cloud.google.com/table/bigquery-public-data:google_analytics_sample.ga_sessions_20170801).
+### Step 1: Extracting customer conversions:
 
-There are two stages to running Fractribution:
+By default, `templates/extract_conversions.sql` runs over the GA360 BigQuery
+table using the conversion definition in `templates/conversion_definition.sql`.
+In most cases, you should only have to edit
+`templates/conversion_definition.sql`. However, if your conversions are stored
+outside the GA360 BigQuery table, use the instructions in
+`templates/extract_conversions.sql` to replace it with a custom script.
 
-* Stage 1: Data Preparation in **py/fractribution_data**
+The conversion window is the period of time that Fractribution will look to
+extract conversions. The window is specified by passing in the following flags:
 
-  This stage generates the customer paths-to-conversion and
-  paths-to-non-conversion via an end-to-end BigQuery and analytics pipeline.
-  There are two ways to run this pipeline, depending on where the customer
-  conversion data lives:
+* ***`conversion_window_end_date`***: `'YYYY-MM-DD'` date in UTC time.
+    Conversions up to midnight on this date are included.
+* ***`conversion_window_end_today_offset_days`***: Sets the
+    `conversion_window_end_date` as an offset from today's date. This is an
+    alternative to `conversion_window_end_date` used in regular scheduled runs
+    of fractribution.
+* ***`conversion_window_length`***: Number of days in the conversion window,
+  leading up to the end date of the conversion window.
 
-  *  Custom Endpoint: prepare_input_for_fractribution_custom_endpoint()
+### Step 2: Defining marketing channels (e.g. `Paid_Search_Brand`, `Email`, etc):
 
-     The conversion data is already in the GA360 BigQuery table. In this
-     tutorial we define conversion as a customer having a 'Contact Us' event.
-     Because this data is already in GA360, we only need to supply a SQL WHERE
-     filter to help extract the data. A sample filter is included in the file:
-     ***py/templates/custom_endpoint_definition.sql***. This file also includes
-     instructions on how to write your own filter more specific to your
-     conversion event.
+Marketing channels are defined in `templates/channel_definitions.sql`. If the
+default set are not suitable, use the instructions in the file to write your
+own definitions.
 
-  *  Upload Endpoint: prepare_input_for_fractribution_upload_endpoint()
+Fractribution uses ad spend by channel to compute return on ad spend (ROAS).
+Overwrite `templates/extract_channel_spend_data.sql` to enable ROAS reporting.
+Note that the ad spend period should include both the conversion window, and
+the preceding `path_lookback_days`.
 
-     If the conversion data is outside GA360, then you need to supply a BigQuery
-     table via the flag ***endpoint_upload_bq_table*** that includes the fields:
-     * customer_id: Your internal id for the customer.
-     * endpoint_datetime: UTC timestamp of the endpoint in format
-       'yyyy-mm-dd hh:mm:ss UTC'.
+### Step 3: Support for cross-device tracking:
 
-  In this tutorial, we will be using the Custom Endpoint. The main flags for
-  this approach are:
+GA360 tracks users at the device level with a `fullVisitorId`. If a user logs
+into your site, you can send a custom `userId` to GA360, which is then
+associated with the `fullVisitorId`. If two `fullVisitorId`s map to the same
+`userId`, it can mean the user is logging in from two different devices.
 
-  * ***project_id***: Google Cloud project to run Fractribution inside.
-  * ***ga_sessions_table***: Name of the GA360 BigQuery table in the format
-    \<PROJECT\>.\<DATASET\>.\<TABLE\>.
-  * ***endpoint_definition***: File containing the custom endpoint definition,
-    e.g. custom_endpoint_definition_example.sql.
-  * ***channel_definitions***: File containing definitions and names of the
-    marketing channels to extract in a path. The format is a CASE WHEN SQL
-    statement to extract the data from GA360. See channel_definitions.sql for
-    a default example.
-  * ***report_window_start***: 'YYYY-mm-DD' date in UTC time to define the start
-    of the reporting period (inclusive) to look for conversions.
-  * ***report_window_end***: 'YYYY-mm-DD' date in UTC time to define the end
-    of the reporting period (inclusive) to look for a conversion.
-  * ***lookback_days***: An integer number of days to look back to build the
-    paths to conversion. Recommended values include 30, 14 and 7. Note that
-    a path contain marketing events before the report_window_start.
-  * ***lookback_steps***: Optional restriction on the maximum number of
-    marketing events in a path to conversion. This is used in conjunction with
-    lookback_days. Recommendated values include 0 (in which case there is no
-    restriction), and 5.
-  * ***session_event_log_table***: Internal BigQuery table for storing
-    intermediate user session data.
-  * ***target_endpoints_table***: Internal BigQuery table for storing
-    intermediate user conversion data.
-  * ***paths_to_conversion_table***: Output BigQuery table for storing
-    user-level paths that end in a conversion event.
-  * ***paths_to_non_conversion_table***: Output BigQuery table for storing
-    user-level paths that do not end in conversion.
-  * ***path_summary_table***: Output BigQuery table for storing conversion and
-    non-conversion oounts by path.
-  * ***channel_counts_table***: Output BigQuery table for storing marketing
-     events counts, aggregated by channel, campaign, source and medium.
+There are two ways to send a `userId` to GA360. First, there is a top-level
+`userId` field added specifically for this purpose. Second, you can use a
+custom-dimension.
 
-* Stage 2: Model fitting in **py/fractribution_model**
-  This stage runs a simplified Shapley Value DDA algorithm over the data
-  prepared in Stage 1 to generate the fractional attribution values. Most of the
-  flags have the same value as in Stage 1, since Stage 2 uses the output of
-  Stage 1.
+Fractribution supports cross-device tracking by maintaining its own mapping
+table of `fullVisitorId` to `userId`. Whenever a `userId` is present,
+Fractribution will use that to group GA360 sessions. Otherwise, it falls back to
+using the `fullVisitorId`.
 
-  * ***project_id***: Google Cloud project to run Fractribution inside.
-  * ***report_window_start***: 'YYYY-mm-DD' date in UTC time to define the start
-    of the reporting period (inclusive) to look for conversions.
-  * ***report_window_end***: 'YYYY-mm-DD' date in UTC time to define the end
-    of the reporting period (inclusive) to look for a conversion.
-  * ***paths_to_conversion_table***: Output BigQuery table for storing
-    user-level paths that end in a conversion event.
-  * ***paths_to_non_conversion_table***: Output BigQuery table for storing
-    user-level paths that do not end in conversion.
-  * ***path_summary_table***: Output BigQuery table for storing conversion and
-    non-conversion oounts by path.
+The main flags for supporting cross-device tracking are:
 
-  The following flags are new for Stage 2.
+* ***`update_fullvisitorid_userid_map`***: `True` to update the internal map
+    from `fullVisitorId` to `userId`, and `False` otherwise. Default: `True`.
+* ***`userid_ga_custom_dimension_index`***: If you use a custom dimension for
+    storing the `userId` in Google Analytics, set the index here. Fractribution
+    will automatically look for the top-level `userId` field, even if this index
+    is defined.
 
-  * ***channels***: Comma separated list of channel names matching the
-    channel_definitions. Note that one of the channels must be
-    'Unmatched Channel'.
-  * ***path_transform_method***: A path transform changes the
-    path-to-conversions and path-to-non-conversions to reduce noise. There are
-    4 transforms to choose from. Given a path of channels
-    (D, A, B, B, C, D, C, C), the transforms are:
+If you maintain your own mapping of `fullVisitorId` to `userId`, overwrite the
+script `templates/extract_fullvisitorid_userid_map.sql`.
 
-      * ***unique***: (identity transform): (D, A, B, B, C, D, C, C),
-      * ***exposure***: (collapse sequential repeats, default option):
-      (D, A, B, C, D, C),
-      * ***first***: (remove repeats): (D, A, B, C),
-      * ***frequency***: (remove repeats, but keep a count):
-      (D(2), A(1), B(2), C(3))
+## Fractribution Parameters:
 
-  * ***report_table***: Output BigQuery table containing the use-level
-    fractribution results. There is one row for each user, and one column for
-    each channel.
+* ***`project_id`***: Google Cloud `project_id` to run Fractribution inside.
+* ***`dataset`***: BigQuery dataset to write the Fractribution output.
+* ***`ga_sessions_table`***: Name of the GA360 BigQuery table in the format
+  `<PROJECT>.<DATASET>.<TABLE>_*`.
+* ***`conversion_window_end_date`***: `'YYYY-MM-DD'` date in UTC time to define
+  the end of the reporting period (inclusive) to look for a conversion.
+* ***`conversion_window_end_today_offset_days`***: Alternative to
+    `conversion_window_end_date` used in regular scheduled runs of
+    fractribution.
+* ***`conversion_window_length`***: Number of days in the conversion window.
+* ***`path_lookback_days`***: An integer number of days to look back to build a
+  user's path of marketing channels that ends in a (non)conversion. Recommended
+  values include `30`, `14` and `7`.
+* ***`path_lookback_steps`***: Optional restriction on the maximum number of
+  marketing channels in a path. If specified, must be at least 0. Default: No
+  restriction.
+* ***`update_fullvisitorid_userid_map`***: `True` to update the internal map
+from `fullVisitorId` to `userId`, and `False` otherwise. Default: `True`.
+* ***`userid_ga_custom_dimension_index`***: If you use a custom dimension for
+  storing the `userId` in Google Analytics, set the index here. Fractribution
+  will automatically look for the top-level `userId` field, even if this index
+  is defined.
+* ***`path_transform`***: Fractribution extracts a path of marketing channels
+  for each user. The path transform will change this path to improve
+  matching and performance of the Fractribution algorithm on sparse data. For
+  example, if a user has several Direct to website visits, this can be
+  compressed to one representative Direct to website visit. There are 4
+  transforms to choose from. Given a path of channels
+  `(D, A, B, B, C, D, C, C)`, the transforms are:
 
-## Deploying Fractribution on GCP: Cloud Functions vs VM
+    * ***`unique`***: (identity transform): yielding `(D, A, B, B, C, D, C, C)`,
+    * ***`exposure`***: (collapse sequential repeats, default option):
+    yielding `(D, A, B, C, D, C)`,
+    * ***`first`***: (remove repeats): yielding `(D, A, B, C)`,
+    * ***`frequency`***: (remove repeats, but keep a count): yielding
+    `(D(2), A(1), B(2), C(3))`
+
+## Tutorial: Running Fractribution on the Google Merchandise Store.
+
+We will run Fractribution over the
+[publicly-available GA360 dataset](https://support.google.com/analytics/answer/7586738?hl=en)
+for the [Google Merchandise store](https://googlemerchandisestore.com/), a real
+ecommerce store that sells Google-branded merchandise. You can view the
+obfuscated data on BigQuery
+[here](https://bigquery.cloud.google.com/table/bigquery-public-data:google_analytics_sample.ga_sessions_20170801).
+
+
+### Deploying Fractribution on GCP: Cloud Functions vs VM
 
 We recommend deploying Fractribution via Cloud Functions. Setup and maintenance
-are easier, and because they are serverless, you only pay for what you use. The
-main downsides are that Cloud Functions are limited to 2GB of RAM and 9 minutes
-of runtime. If Cloud Functions run out of memory or time on your data, switch to
-the VM approach, which allows you to select a compute engine with much higher
-memory and no time limits.
+are easier, and because Cloud Functions are serverless, you only pay for what
+you use. The main downsides are that Cloud Functions are limited to 2GB of RAM
+and 9 minutes of runtime. If Cloud Functions run out of memory or time on your
+data, switch to the VM approach, which allows you to select a compute engine
+with much higher memory and no time limits.
 
 Either way, for this tutorial, please select:
 
-* ***\<PROJECT_ID\>***: GCP project in which to run Fractribution
-* ***\<DATASET\>***: BigQuery dataset to store the Fractribution output. To
-   create a dataset, either go through the
-   [UI](https://cloud.google.com/bigquery/docs/datasets#classic-ui), or the
-   [command line](https://cloud.google.com/bigquery/docs/datasets#bq)
+* ***`<PROJECT_ID>`***: GCP project in which to run Fractribution
+* ***`<DATASET>`***: BigQuery dataset name to store the Fractribution output.
 
-## Running Python Cloud Functions
+### Approach 1: Running Python Cloud Functions (recommended)
 
-Running the Python Cloud Function version of Fractribution requires deploying
-and running two cloud functions. The first function sets up the data tables,
-and the second function runs the fractribution model on those tables.
-
-### Setup
-
+#### Setup
 [Install gcloud SDK](https://cloud.google.com/sdk/install)
 
 ```
 gcloud auth login && gcloud config set project <PROJECT_ID>
 ```
 
-Download the fractribution folders to your local computer and change directory
-into the fractribution_data folder.
+Download the fractribution folder to your local computer and change directory
+into `fractribution/py`. We will use the default definition of customer
+conversion and revenue. We will also use the default channel definitions.
+However, to make the report more interesting, in
+`templates/extract_channel_spend_data.sql`, comment out the default SQL, and
+uncomment the sample uniform spend data instead.
 
-### Deploying and Running the FractributionData Cloud Function
+#### Deploying and Running the Fractribution Cloud Function
 
-For this tutorial, we will create a Cloud Function called FractributionDataTest.
-
-```
-gcloud functions deploy FractributionDataTest \
---project <PROJECT_ID> \
---runtime python37 \
---entry-point prepare_input_for_fractribution_custom_endpoint \
---trigger-event google.pubsub.topic.publish \
---trigger-resource FractributionDataTestPubSub \
---timeout 540s \
---memory 2GB
-```
-
-Note that the entry-point, or main function, is
-***prepare_input_for_fractribution_custom_endpoint***. Later, when you run on
-your data, if the conversion data is not inside GA360, change the entry-point to
-***prepare_input_for_fractribution_upload_endpoint***. Also, note that
-FractributionDataTest is built from the code in the current directory. To start
-with, this includes the sample channel and conversion definitions. When you
-customize these later, you will have to create a new Cloud Function or overwrite
-this one.
-
-The trigger-* flags above setup how to run FractributionDataTest. The
-trigger-resource flags creates a PubSub topic called
-FractributionDataTestPubSub. The Cloud Function executes when it receives a
-message on this topic. To publish a message and trigger FractributionDataTest,
-use the following command:
+For this tutorial, we will create a Cloud Function called `FractributionTest`.
 
 ```
-gcloud pubsub topics publish FractributionDataTestPubSub --message '
-{"project_id":"<PROJECT_ID>",
-"ga_sessions_table":"bigquery-public-data.google_analytics_sample.ga_sessions_*",
-"endpoint_definition":"custom_endpoint_definition_example.sql",
-"channel_definitions":"channel_definitions.sql",
-"report_window_start":"2016-08-01",
-"report_window_end":"2017-08-01",
-"lookback_days":"30",
-"session_event_log_table":"<PROJECT_ID>.<DATASET>.session_event_log_table",
-"target_endpoints_table":"<PROJECT_ID>.<DATASET>.target_endpoints_table",
-"paths_to_conversion_table":"<PROJECT_ID>.<DATASET>.paths_to_conversion_table",
-"paths_to_non_conversion_table":"<PROJECT_ID>.<DATASET>.paths_to_non_conversion_table",
-"path_summary_table":"<PROJECT_ID>.<DATASET>.path_summary_table",
-"channel_counts_table":"<PROJECT_ID>.<DATASET>.channel_counts_table"
-}'
-```
-
-You can now go to your BigQuery \<DATASET\> to view the output of the first
-stage of fractribution. We recommend looking at the channel_counts_table,
-paths_to_conversion_table, and path_summary_table.
-
-### Deploying and running the Model Cloud Function
-
-Change directories on your machine to py/fractribution_model. Deploy the
-FractributionModelTest with the following command:
-
-```
-gcloud functions deploy FractributionModelTest \
---project <PROJECT_ID> \
+gcloud functions deploy FractributionTest \
 --runtime python37 \
 --entry-point main \
 --trigger-event google.pubsub.topic.publish \
---trigger-resource FractributionModelTestPubSub \
+--trigger-resource FractributionTestPubSub \
 --timeout 540s \
 --memory 2GB
 ```
 
-To run FractributionModelTest, publish the arguments as a message to the PubSub
-topic FractributionModelTestPubSub. Here is an example command:
+The `trigger-*` flags above setup how to run `FractributionTest`. The
+`trigger-resource` flags creates a PubSub topic called `FractributionTestPubSub`.
+The Cloud Function executes when it receives a message on this topic.
+To publish a message and trigger `FractributionTest`, use the following command:
 
 ```
-gcloud pubsub topics publish FractributionModelTestPubSub --message '
-{"project_id":"<PROJECT_ID>",
-"report_window_start":"2016-08-01",
-"report_window_end":"2017-08-01",
-"paths_to_conversion_table":"<PROJECT_ID>.<DATASET>.paths_to_conversion_table",
-"paths_to_non_conversion_table":"<PROJECT_ID>.<DATASET>.paths_to_non_conversion_table",
-"path_summary_table":"<PROJECT_ID>.<DATASET>.path_summary_table",
-"path_transform_method":"exposure",
-"report_table":"<PROJECT_ID>.<DATASET>.report",
+gcloud pubsub topics publish FractributionTestPubSub --message '{
+"project_id":"<PROJECT_ID>",
+"dataset":"<DATASET>",
+"ga_sessions_table":"bigquery-public-data.google_analytics_sample.ga_sessions_*",
+"conversion_window_end_date":"2017-08-01",
+"conversion_window_length":30,
+"path_lookback_days":"30",
+"path_transform":"exposure"
 }'
 ```
 
-Now you can go to your report_table and view the final user-level results
-of fractribution.
+You can now go to your BigQuery `<DATASET>` to view the output of the first
+stage of fractribution. Note that the output tables all have the same suffix,
+which is the `<conversion_window_end_date>`. This helps separate regular
+scheduled runs of Fractribution over time. We recommend looking at:
 
-Note that when you customize your channel definitions, you will need to pass
-in the new channels as a comma-separated list via the channels flag discussed
-earlier.
+* ***`report_table`***: Channel-level summary of attributed conversions,
+   revenue, spend and ROAS.
+* ***`path_summary_table`***: For each transfomed path, total number of
+   conversions, non-conversions, revenue, and channel-level fractional
+   attribution values out of 1.
+* ***`channel_counts_table`***: Number of marketing events, aggregated by
+  `channel`, `campaign`, `source` and `medium`
 
-
-### Scheduling Fractribution to run end-to-end on the latest data.
-
-There are two steps to accomplish here. First we need FractributionData to
-trigger FractributionModel once it is finished. And secondly, we need to
-automatically trigger FractributionData to run on the latest data according
-to a given schedule.
-
-#### Getting FractributionData to trigger FractributionModel:
-If you pass model_topic_name as an argument to FractributionData, it will
-publish a message to that topic when it is finished. The message includes all of
-its arguments. So to get FractributionData to trigger FractributionModel, we
-just need to include all of FractributionModel's arguments to the arguments for FractributionData, and also to pass the PubSub topic to trigger
-FractributionModel.
-
-#### Automatically triggering FractributionData on a given schedule:
+#### Scheduling Fractribution to run end-to-end on the latest data.
 
 1.  Decide how often you want to run Fractribution.
 
-    CRON_SCHEDULE = Schedule on which Fractribution will be executed in
+    `CRON_SCHEDULE` = Schedule on which Fractribution will be executed in
     cron-unix format.
 
-    Example: 15 1 1 * * - Run every first day of the month at 1:15AM.
+    Example: `15 1 1 * *` - Run every first day of the month at 1:15AM.
 
-2.  Do not include report_window_start and report_window_end in the parameters,
-    instead use these parameters to calculate the report window.
+1.  Use ***`conversion_window_end_today_offset_days`*** instead of the fixed
+    ***`conversion_window_end_date`*** in the parameters. Suggested values are
+    `1` or `2`, to give enough time for the Google Analytics data tables to be
+    fully ingested into BigQuery.
 
-    CURRDATE_OFFSET = The number days offset from the current date.
-    REPORT_WINDOW_LENGTH = The number of days in your report period.
-
-    Example:
-
-    -   If CURRDATE_OFFSET = 0 and REPORT_WINDOW_LENGTH = 7, report_window_end =
-        Current Date and report_window_start = (report_window_end - 7 days)
-    -   If CURRDATE_OFFSET = 2 and REPORT_WINDOW_LENGTH = 30,
-        report_window_end = (Current Date - 2 day) and report_window_start =
-        (report_window_end - 30 days)
-
-3.  Trigger the FractributionModel after FractributionData is done by including
-    the FractributionModel_TOPIC_NAME in the parameters.
-
-4.  Create a cron job to run Fractribution using Cloud Scheduler.
+1.  Create a cron job to run Fractribution using Cloud Scheduler.
 
     ```
     gcloud scheduler jobs create pubsub Fractribution --schedule
-    "<CRON_SCHEDULE>" --topic FractributionData --message-body '{
+    "<CRON_SCHEDULE>" --topic FractributionTest --message-body '{
     "project_id":"<PROJECT_ID>",
+    "dataset":"<DATASET>",
     "ga_sessions_table":"<CLIENT_GA_TABLE_PATH>.ga_sessions_*",
-    "endpoint_definition":"custom_endpoint_definition_example.sql",
-    "channel_definitions":"channel_definitions.sql",
-    "lookback_days":"30",
-    "lookback_steps":"0",
-    "session_event_log_table":"<PROJECT_ID>.<DATASET>.session_event_log_table",
-    "target_endpoints_table":"<PROJECT_ID>.<DATASET>.target_endpoints_table",
-    "paths_to_conversion_table":"<PROJECT_ID>.<DATASET>.paths_to_conversion_table",
-    "paths_to_non_conversion_table":"<PROJECT_ID>.<DATASET>.paths_to_non_conversion_table",
-    "path_summary_table":"<PROJECT_ID>.<DATASET>.path_summary_table",
-    "channel_counts_table":"<PROJECT_ID>.<DATASET>.channel_counts_table",
-    "report_window_length":"<REPORT_WINDOW_LENGTH>",
-    "report_window_end_offset_from_currdate":"<CURRDATE_OFFSET>",
-    "model_topic_name":"<FractributionModel_TOPIC_NAME>",
-    "path_transform_method":"exposure",
-    "report_table":"<PROJECT_ID>.<DATASET>.report"}'
+    "conversion_window_end_today_offset_days":1,
+    "conversion_window_length":30,
+    <OTHER PARAMETERS HERE>
+    }'
     ```
 
-### Debugging Fractribution
+#### Debugging Fractribution
 
-If you are planning to debug, [install python](https://cloud.google.com/python/setup?hl=en#installing_python)
-and optionally use a virtual environment to sandbox your dependencies.
+If you need to debug changes you've made, it is much faster to do locally,
+rather than going through the slower process of uploading several versions of
+the Cloud Function for each small change. Use the `functions-framework` to debug
+locally as below:
 
-This example uses a Python virtual environment. The following commands are
-creating a virtual environment, installing the dependencies from
-requirements.txt, and then using functions-framework to deploy your cloud
-function on your local machine.
-
-```
-$virtualenv fracenv
-$source fracenv/bin/activate
-$cd <your fractribution_data dir>
-$pip3 install -r requirements.txt
-```
-
-#### Debugging the Data Cloud Function
+First, follow
+[these instructions](https://cloud.google.com/python/setup?hl=en#installing_python)
+for installing python and running a virtual environment to sandbox dependencies.
+In particular, from inside the `fractribution/py` directory:
 
 ```
-$functions-framework --target prepare_input_for_fractribution_custom_endpoint \
---signature-type=event --debug
+python -m venv venv
+source venv/bin/activate
+pip3 install -r requirements.txt
+export GOOGLE_APPLICATION_CREDENTIALS=<CREDENTIALS_FILENAME>
+functions-framework --target main --signature-type=event --debug
 ```
 
-The way to call the local version of your cloud version is slightly different to
-how you would normally do it using a PubSub message. Your local cloud function
-is running within a web server, and you have to manually encode the parameters
-before you call the web version. To base64 encode the parameters including the
-surround braces {}, you can use one of the commands below depending on your
-operating system. We recommend you do not use third-party websites to encode
-your parameters as you may be leaking sensitive information.
+The Fractribution cloud function is now running in a local web server. Instead
+of using PubSub, we `POST` the parameters to the Cloud Function using
+***`curl`***. This means we have to encode the parameters in base64, e.g.
 
 Linux:
 ```
-echo -n '{"p1":”v1”, “p2”:”v2”}' | base64
+echo -n '{"project_id":”<PROJECT_ID”, ...}' | base64 -w 0
 ```
 
 Mac:
 ```
-echo -n '{"p1":”v1”, “p2”:”v2”}' | openssl base64
+echo -n '{"project_id":”<PROJECT_ID”, ...}' | openssl base64
 ```
 
 Windows PowerShell:
 ```
-[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(‘{"p1”:”val1”, ”p2”:val2”}’))
+[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(‘{"project_id”:”<PROJECT_ID>”, ...}’))
 ```
 
-Now you can copy that encoded text into the command below to call the local web
-server containing your cloud function:
+Copy the encoded parameters text into the `curl` command below:
 
 ```
+export GOOGLE_APPLICATION_CREDENTIALS=<CREDENTIALS_FILENAME>
 curl -d '{"data": {"data": "<PUT_ENCODED_PARAMS_HERE>"}}' \-X POST -H "Content-Type: application/json" http://0.0.0.0:8080
 ```
 
 That should capture both print statements and debug traces when things go wrong.
 
-#### Debugging the Model Cloud Function
-
-In your python virtual environment with requirements.txt dependencies installed:
-```
-functions-framework --target main --signature-type=event --debug
-```
-```
-curl -d '{"data": {"data": "<BASE_64_ENCODED_PARAMS"}}' \-X POST -H "Content-Type: application/json" http://0.0.0.0:8080
-```
-
-
-## Deploy Fractribution Docker Image on GCP VM Instance
+### Approach 2: Deploy Fractribution Docker Image on GCP VM Instance
 
 1.  Variables:
 
-    1.  \<Fractribution_Region\> - Region of the VM Instance
-    2.  \<Fractribution_Zone\> - Zone of the VM Instance
-    3.  \<Fractribution_Service_Account\> - Service Account for Fractribution.
+    1.  `<Fractribution_Region>` - Region of the VM Instance
+    1.  `<Fractribution_Zone>` - Zone of the VM Instance
+    1.  `<Fractribution_Service_Account>` - Service Account for Fractribution.
         It should have the following roles:
         *  BigQuery Data Editor
         *  BigQuery Job User
         *  Compute Instance Admin (beta)
         *  Logs Writer
         *  Storage Object Viewer
-    4.  \<Fractribution_Schedule\> - Schedule on which Fractribution will be
-        executed in cron-unix format. Example: “15 1 1 * *” - Run every first
+    1.  `<Fractribution_Schedule>` - Schedule on which Fractribution will be
+        executed in cron-unix format. Example: `"15 1 1 * *"` - Run every first
         day of the month at 1:15AM.
-
-    5.  \<Fractribution_Param\> - Fractribution parameters for data and model in
-        JSON format. Example value below:
+    1.  `<Fractribution_Param>` - Fractribution parameters for data and model
+        in JSON format. Example value below:
 
         ```
         '{"project_id":"<PROJECT_ID>",
-        "ga_sessions_table":"<CLIENT_GA_TABLE_PATH>.ga_sessions_*",
-        "endpoint_definition":"custom_endpoint_definition_example.sql",
-        "channel_definitions":"channel_definitions.sql",
-        "lookback_days":"30",
-        "lookback_steps":"0",
-        "session_event_log_table":"<PROJECT_ID>.<DATASET>.session_event_log_table",
-        "target_endpoints_table":"<PROJECT_ID>.<DATASET>.target_endpoints_table",
-        "paths_to_conversion_table":"<PROJECT_ID>.<DATASET>.paths_to_conversion_table",
-        "paths_to_non_conversion_table":"<PROJECT_ID>.<DATASET>.paths_to_non_conversion_table",
-        "path_summary_table":"<PROJECT_ID>.<DATASET>.path_summary_table",
-        "channel_counts_table":"<PROJECT_ID>.<DATASET>.channel_counts_table",
-        "report_window_length":"<REPORT_WINDOW_LENGTH>",
-        "report_window_end_offset_from_currdate":"<CURRDATE_OFFSET>",
-        "model_topic_name":"<FractributionModel_TOPIC_NAME>",
-        "path_transform_method":"exposure",
-        "report_table":"<PROJECT_ID>.<DATASET>.report"}'
+          "dataset":"<DATASET>",
+          "ga_sessions_table":"bigquery-public-data.google_analytics_sample.ga_sessions_*",
+          "conversion_window_end_date":"2017-08-01",
+          "conversion_window_length":30,
+          "path_lookback_days":30,
+          "path_transform":"exposure"}'
         ```
 
-2.  Create a docker image of the Fractribution.
+1.  Create a docker image. From the Fractribution code directory:
 
     ```bash
-    gcloud builds submit --tag gcr.io/\<project_id\>/\<image-name\>
+    gcloud builds submit --tag gcr.io/<project_id>/<image-name>
     ```
 
-3.  Set up the Compute Engine Instance
+1.  Set up the Compute Engine Instance
 
-    1.  Go to VM instances page
+    1.  Go to the VM instances page
         https://console.cloud.google.com/compute/instances
+    1.  Click Create instance.
+    1.  Set the _Name_.
+    1.  Click Add label. Enter `env` for _Key_ and `fractribution` for _Value_.
+    1.  Select Region, then select `<Fractribution_Region>.en`
+    1.  For _Zone_ select `<Fractribution_Zone>`.
+    1.  Select Deploy a container image.
+    1.  Specify the container image (`gcr.io/<project_id>/<image-name>`)
+        created in Step #1.
+    1.  Expand Advanced container options section.
+    1. Under Environment variables, click Add variable. Enter
+        `fractribution_param` for _NAME_ and `<Fractribution_Param>` for
+        _VALUE_.
+    1. Under Identity and API access, for Service account, select
+        `<Fractribution_Service_Account>`.
+    1. Click Create at the bottom of the page.
 
-    2.  Click Create instance.
-
-    3.  Set the Name.
-
-    4.  Click Add label. Enter env for Key and fractribution for Value.
-
-    5.  Select Region select \<Fractribution_Region\>.en
-
-    6.  For Zone select \<Fractribution_Zone\>.
-
-    7.  Select Deploy a container image.
-
-    8.  Specify the container image created in Step #1.
-
-    9.  Expand Advanced container options section.
-
-    10. Under Environment variables, click Add variable. Enter
-        fractribution_param for NAME and \<Fractribution_Param\> for VALUE.
-
-    11. Under Identity and API access, for Service account, select
-        \<Fractribution_Service_Account\>.
-
-    12. Click Create at the bottom of the page.
-
-4.  Set up Cloud Function to start a VM instance. (Reference)
+1.  Set up Cloud Function to start a VM instance. (Reference)
 
     1.  Go to the Cloud Functions page in the Cloud Console.
-
-    2.  Click Create Function.
-
-    3.  Set the Name to startInstancePubSub.
-
-    4.  Leave Memory allocated at its default value.
-
-    5.  For Trigger, select Cloud Pub/Sub.
-
-    6.  For Topic, select Create new topic....
-
-    7.  A New pub/sub topic dialog box should appear.
-
-    8.  Under Name, enter start-instance-event.
-
-    9.  Click Create to finish the dialog box.
-
-    10. For Runtime, select Node.js 10.
-
-    11. Above the code text block, select the index.js tab.
-
-    12. Replace the starter code with the following code:
+    1.  Click Create Function.
+    1.  Set the Name to startInstancePubSub.
+    1.  Leave Memory allocated at its default value.
+    1.  For Trigger, select Cloud Pub/Sub.
+    1.  For Topic, select Create new topic....
+    1.  A New pub/sub topic dialog box should appear.
+    1.  Under Name, enter start-instance-event.
+    1.  Click Create to finish the dialog box.
+    1. For Runtime, select Node.js 10.
+    1. Above the code text block, select the index.js tab.
+    1. Replace the starter code with the following code:
 
     ```
     const Compute = require('@google-cloud/compute');
@@ -530,8 +392,7 @@ curl -d '{"data": {"data": "<BASE_64_ENCODED_PARAMS"}}' \-X POST -H "Content-Typ
     ```
 
     1.  Above the code text block, select the package.json tab.
-
-    2.  Replace the starter code with the following code:
+    1.  Replace the starter code with the following code:
 
     ```
     {
@@ -547,41 +408,24 @@ curl -d '{"data": {"data": "<BASE_64_ENCODED_PARAMS"}}' \-X POST -H "Content-Typ
       "engines": {
         "node": ">=8.0.0"
       },
-      "scripts": {
-        "test": "mocha test/*.test.js --timeout=20000"
-      },
-      "devDependencies": {
-        "mocha": "^7.0.0",
-        "proxyquire": "^2.0.0",
-        "sinon": "^9.0.0"
-      },
       "dependencies": {
         "@google-cloud/compute": "^1.0.0"
       }
     }
     ```
 
-    1.  For Function to execute, enter startInstancePubSub.
+    1.  For Function to execute, enter `startInstancePubSub`.
+    1.  Click Create.
 
-    2.  Click Create.
-
-5.  Set up Cloud Scheduler to trigger Pub/Sub. (Reference)
+1.  Set up Cloud Scheduler to trigger Pub/Sub. (Reference)
 
     1.  Go to the Cloud Scheduler page in the Cloud Console.
-
-    2.  Click Create Job.
-
-    3.  Set the Name to startup-fractribution-instance.
-
-    4.  For Frequency, enter \<Fractribution_Schedule\>.
-
-    5.  For Timezone, select your desired country and timezone.
-
-    6.  For Target, select Pub/Sub.
-
-    7.  For Topic, enter start-instance-event.
-
-    8.  For Payload, enter the following:
-        {"zone":"\<Fractribution_Zone\>","label":"env=fractribution"}
-
-    9.  Click Create.
+    1.  Click Create Job.
+    1.  Set the Name to `startup-fractribution-instance`.
+    1.  For Frequency, enter `<Fractribution_Schedule>`.
+    1.  For Timezone, select your desired country and timezone.
+    1.  For Target, select Pub/Sub.
+    1.  For Topic, enter `start-instance-event`.
+    1.  For Payload, enter the following:
+        `{"zone":"<Fractribution_Zone>","label":"env=fractribution"}`
+    1.  Click Create.
