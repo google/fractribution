@@ -429,3 +429,5 @@ That should capture both print statements and debug traces when things go wrong.
     1.  For Payload, enter the following:
         `{"zone":"<Fractribution_Zone>","label":"env=fractribution"}`
     1.  Click Create.
+
+Disclaimer: This is not an officially supported Google product.
