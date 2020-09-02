@@ -45,28 +45,30 @@ WITH
       `{{ga_sessions_table}}` AS Sessions,
       UNNEST(hits) AS hits
       {% if 'customDimension.' in conversion_definition_sql %}
-      , UNNEST(customDimensions) AS customDimensions
+      -- Using LEFT JOIN because if the UNNEST is empty, a CROSS JOIN will be empty too, and we may
+      -- want to inspect a separate UNNEST below.
+      LEFT JOIN UNNEST(customDimensions) AS customDimensions
       {% endif %}
       {% if 'hitsCustomDimension.' in conversion_definition_sql %}
-      , UNNEST(hits.customDimensions) AS hitsCustomDimensions
+      LEFT JOIN UNNEST(hits.customDimensions) AS hitsCustomDimensions
       {% endif %}
       {% if 'hitsCustomVariables.' in conversion_definition_sql %},
-      , UNNEST(hits.customVariables) AS hitsCustomVariables
+      LEFT JOIN UNNEST(hits.customVariables) AS hitsCustomVariables
       {% endif %}
       {% if 'hitsCustomMetrics.' in conversion_definition_sql %},
-      , UNNEST(hits.customMetrics) AS hitsCustomMetrics
+      LEFT JOIN UNNEST(hits.customMetrics) AS hitsCustomMetrics
       {% endif %}
       {% if 'hitsProducts.' in conversion_definition_sql %},
-      , UNNEST(hits.products) AS hitsProducts
+      LEFT JOIN UNNEST(hits.products) AS hitsProducts
       {% endif %}
       {% if 'hitsPromotions.' in conversion_definition_sql %},
-      , UNNEST(hits.promotions) AS hitsPromotions
+      LEFT JOIN UNNEST(hits.promotions) AS hitsPromotions
       {% endif %}
       {% if 'hitsExperiments.' in conversion_definition_sql %},
-      , UNNEST(hits.experiments) AS hitsExperiments
+      LEFT JOIN UNNEST(hits.experiments) AS hitsExperiments
       {% endif %}
       {% if 'hitsPublisherInfos.' in conversion_definition_sql %},
-      , UNNEST(hits.publisher_infos) AS hitsPublisherInfos
+      LEFT JOIN UNNEST(hits.publisher_infos) AS hitsPublisherInfos
       {% endif %}
     WHERE
       _TABLE_SUFFIX BETWEEN
@@ -86,11 +88,6 @@ WITH
       fullVisitorId,
       visitStartTime,
       revenue
-  ),
-  FullVisitorIdUserIdMapTable AS (
-    SELECT DISTINCT fullVisitorId, userId
-    FROM `{{fullvisitorid_userid_map_table}}`
-    WHERE fullVisitorId IS NOT NULL AND userId IS NOT NULL
   )
 SELECT
   CASE
@@ -101,6 +98,6 @@ SELECT
   conversionTimestamp,
   revenue
 FROM ConversionsByFullVisitorId
-LEFT JOIN FullVisitorIdUserIdMapTable USING (fullVisitorId)
+LEFT JOIN `{{fullvisitorid_userid_map_table}}` AS FullVisitorIdUserIdMapTable USING (fullVisitorId)
 -- Do not include a trailing ; as this query is included in another SQL query.
 

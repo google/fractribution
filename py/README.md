@@ -40,8 +40,9 @@ associated with the `fullVisitorId`. If two `fullVisitorId`s map to the same
 `userId`, it can mean the user is logging in from two different devices.
 
 There are two ways to send a `userId` to GA360. First, there is a top-level
-`userId` field added specifically for this purpose. Second, you can use a
-custom-dimension.
+`userId` field added specifically for this purpose. However, this userId may not
+be present in the GA360 BigQuery table, even if it is set in GA360. So the
+second way is to use a custom dimension (either hit-level or top-level).
 
 Fractribution supports cross-device tracking by maintaining its own mapping
 table of `fullVisitorId` to `userId`. Whenever a `userId` is present,
@@ -56,6 +57,10 @@ The main flags for supporting cross-device tracking are:
     storing the `userId` in Google Analytics, set the index here. Fractribution
     will automatically look for the top-level `userId` field, even if this index
     is defined.
+* ***`userid_ga_hits_custom_dimension_index`***: If you use a hit-level custom
+    dimension for storing the `userId` in Google Analytics, set the index here.
+    Fractribution will automatically look for the top-level `userId` field, even
+    if this index is defined.
 
 If you maintain your own mapping of `fullVisitorId` to `userId`, overwrite the
 script `templates/extract_fullvisitorid_userid_map.sql`.
@@ -84,6 +89,10 @@ from `fullVisitorId` to `userId`, and `False` otherwise. Default: `True`.
   storing the `userId` in Google Analytics, set the index here. Fractribution
   will automatically look for the top-level `userId` field, even if this index
   is defined.
+* ***`userid_ga_hits_custom_dimension_index`***: If you use a hit-level custom
+  dimension for storing the `userId` in Google Analytics, set the index here.
+  Fractribution will automatically look for the top-level `userId` field, even
+  if this index is defined.
 * ***`path_transform`***: Fractribution extracts a path of marketing channels
   for each user. The path transform will change this path to improve
   matching and performance of the Fractribution algorithm on sparse data. For
@@ -122,6 +131,9 @@ Either way, for this tutorial, please select:
 
 * ***`<PROJECT_ID>`***: GCP project in which to run Fractribution
 * ***`<DATASET>`***: BigQuery dataset name to store the Fractribution output.
+* ***`<REGION>`***:
+   [Region name](https://cloud.google.com/bigquery/docs/locations) containing
+   the dataset.
 
 ### Approach 1: Running Python Cloud Functions (recommended)
 
@@ -146,6 +158,7 @@ For this tutorial, we will create a Cloud Function called `FractributionTest`.
 ```
 gcloud functions deploy FractributionTest \
 --runtime python37 \
+--region <REGION> \
 --entry-point main \
 --trigger-event google.pubsub.topic.publish \
 --trigger-resource FractributionTestPubSub \

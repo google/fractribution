@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS `{{fullvisitorid_userid_map_table}}` (
 {% if update_fullvisitorid_userid_map_table %}
 INSERT `{{fullvisitorid_userid_map_table}}`
   (fullVisitorId, userId, mapStartTimestamp, tableSuffixWhenAdded)
-{% include 'fullvisitorId_userid_map.sql' %};
+{% include 'extract_fullvisitorId_userid_map.sql' %};
 {% endif %}
 
 CREATE TEMP TABLE `{{conversions_by_customer_id_table}}` AS (

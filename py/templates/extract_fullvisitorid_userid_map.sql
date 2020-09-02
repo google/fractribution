@@ -17,6 +17,8 @@
 -- Args:
 --  ga_sessions_table: Google Analytics BigQuery table.
 --  userid_ga_custom_dimension_index: Index of the userId in the Google Analytics custom dimension.
+--  userid_ga_hits_custom_dimension_index: Index of the userId in the Google Analytics hits custom
+--    dimension.
 --
 -- If your fullVisitorId to userId mappings are outside Google Analytics, replace this script with
 -- one that queries your table and extracts the following:
@@ -28,22 +30,49 @@
 --     entire table.
 SELECT DISTINCT
   fullVisitorId,
-  IFNULL(userId, CustomDimension.value) AS userId,
+  CASE
+    WHEN userId IS NOT NULL THEN userId
+    {% if userid_ga_custom_dimension_index > 0 %}
+    WHEN
+      customDimension.index = {{userid_ga_custom_dimension_index}}
+      AND customDimension.value IS NOT NULL
+      THEN customDimension.value
+    {% endif %}
+    {% if userid_ga_hits_custom_dimension_index > 0 %}
+    WHEN
+      hitsCustomDimension.index = {{userid_ga_hits_custom_dimension_index}}
+      AND hitsCustomDimension.value IS NOT NULL
+      THEN hitsCustomDimension.value
+    {% endif %}
+    ELSE NULL
+    END AS userId,
   TIMESTAMP_SECONDS(visitStartTime) AS mapStartTimestamp,
   FORMAT_DATE('%Y%m%d', DATE_SUB(CURRENT_DATE('UTC'), INTERVAL 1 DAY)) AS tableSuffixWhenAdded
-FROM `{{ga_sessions_table}}` AS Sessions,
-  UNNEST(Sessions.hits) AS hits,
-  UNNEST(hits.customDimensions) AS customDimension
+FROM `{{ga_sessions_table}}` AS Sessions
+  {% if userid_ga_custom_dimension_index > 0 %}
+  LEFT JOIN UNNEST(Sessions.customDimensions) as customDimension
+  {% endif %}
+  {% if userid_ga_hits_custom_dimension_index > 0 %},
+  UNNEST(Sessions.hits) as hits  -- hits cannot be empty, since Sessions begin with a hit.
+  LEFT JOIN UNNEST(hits.customDimensions) as hitsCustomDimension
+  {% endif %}
 WHERE
   _TABLE_SUFFIX BETWEEN
     MAX(added_at_end_suffix)
     AND FORMAT_DATE('%Y%m%d', DATE_SUB(CURRENT_DATE('UTC'), INTERVAL 1 DAY))
+  AND fullVisitorId IS NOT NULL
   AND (
     Sessions.userId IS NOT NULL
     {% if userid_ga_custom_dimension_index > 0 %}
     OR (
-      CustomDimension.index = {{userid_ga_custom_dimension_index}}
-      AND CustomDimension.value IS NOT NULL
+      customDimension.index = {{userid_ga_custom_dimension_index}}
+      AND customDimension.value IS NOT NULL
+    )
+    {% endif %}
+    {% if userid_ga_hits_custom_dimension_index > 0 %}
+    OR (
+      hitsCustomDimension.index = {{userid_ga_hits_custom_dimension_index}}
+      AND hitsCustomDimension.value IS NOT NULL
     )
     {% endif %}
   )
