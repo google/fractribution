@@ -19,6 +19,7 @@
 --  userid_ga_custom_dimension_index: Index of the userId in the Google Analytics custom dimension.
 --  userid_ga_hits_custom_dimension_index: Index of the userId in the Google Analytics hits custom
 --    dimension.
+--  fullvisitorid_userid_map_table: BigQuery table with mappings from fullVisitorIds to userIds.
 --
 -- If your fullVisitorId to userId mappings are outside Google Analytics, replace this script with
 -- one that queries your table and extracts the following:
@@ -47,7 +48,7 @@ SELECT DISTINCT
     ELSE NULL
     END AS userId,
   TIMESTAMP_SECONDS(visitStartTime) AS mapStartTimestamp,
-  FORMAT_DATE('%Y%m%d', DATE_SUB(CURRENT_DATE('UTC'), INTERVAL 1 DAY)) AS tableSuffixWhenAdded
+  _TABLE_SUFFIX AS tableSuffixWhenAdded
 FROM `{{ga_sessions_table}}` AS Sessions
   {% if userid_ga_custom_dimension_index > 0 %}
   LEFT JOIN UNNEST(Sessions.customDimensions) as customDimension
@@ -58,8 +59,15 @@ FROM `{{ga_sessions_table}}` AS Sessions
   {% endif %}
 WHERE
   _TABLE_SUFFIX BETWEEN
-    MAX(added_at_end_suffix)
-    AND FORMAT_DATE('%Y%m%d', DATE_SUB(CURRENT_DATE('UTC'), INTERVAL 1 DAY))
+    -- From one day after the maximum table suffix previously recorded.
+    (SELECT
+       FORMAT_DATE(
+         "%Y%m%d",
+         DATE_ADD(PARSE_DATE("%Y%m%d", IFNULL(MAX(tableSuffixWhenAdded), "19700101")),
+                  INTERVAL 1 DAY))  -- 1 day after the latest tableSuffixWhenAdded.
+     FROM `{{fullvisitorid_userid_map_table}}`)
+    -- To yesterday.
+    AND FORMAT_DATE('%Y%m%d', CURRENT_DATE('UTC') - 1)
   AND fullVisitorId IS NOT NULL
   AND (
     Sessions.userId IS NOT NULL
