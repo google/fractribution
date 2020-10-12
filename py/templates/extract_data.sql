@@ -16,6 +16,7 @@
 # SQL script for extracting the paths to conversion and non-conversion used in Fractribution.
 -- Args:
 --  fullvisitorid_userid_map_table
+--  update_fullvisitorid_userid_map
 --  conversions_by_customer_id_table
 --  sessions_by_customer_id_table
 --  paths_to_conversion_table
@@ -30,10 +31,10 @@ CREATE TABLE IF NOT EXISTS `{{fullvisitorid_userid_map_table}}` (
   mapStartTimestamp TIMESTAMP NOT NULL,
   tableSuffixWhenAdded STRING NOT NULL
 );
-{% if update_fullvisitorid_userid_map_table %}
+{% if update_fullvisitorid_userid_map %}
 INSERT `{{fullvisitorid_userid_map_table}}`
   (fullVisitorId, userId, mapStartTimestamp, tableSuffixWhenAdded)
-{% include 'extract_fullvisitorId_userid_map.sql' %};
+{% include 'extract_fullvisitorid_userid_map.sql' %};
 {% endif %}
 
 CREATE TEMP TABLE `{{conversions_by_customer_id_table}}` AS (
