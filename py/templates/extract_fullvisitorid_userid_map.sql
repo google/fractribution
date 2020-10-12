@@ -71,19 +71,16 @@ WHERE
   AND fullVisitorId IS NOT NULL
   AND (
     Sessions.userId IS NOT NULL
-    AND LOWER(Sessions.userId) NOT IN ('', 'undefined', 'n/a')
     {% if userid_ga_custom_dimension_index > 0 %}
     OR (
       customDimension.index = {{userid_ga_custom_dimension_index}}
       AND customDimension.value IS NOT NULL
-      AND LOWER(customDimension.value) NOT IN ('', 'undefined', 'n/a')
     )
     {% endif %}
     {% if userid_ga_hits_custom_dimension_index > 0 %}
     OR (
       hitsCustomDimension.index = {{userid_ga_hits_custom_dimension_index}}
       AND hitsCustomDimension.value IS NOT NULL
-      AND LOWER(hitsCustomDimension.value) NOT IN ('', 'undefined', 'n/a')
     )
     {% endif %}
   )

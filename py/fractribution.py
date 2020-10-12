@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 """Library for computing fractional attribution."""
 
 import io
@@ -112,20 +113,14 @@ class Fractribution(object):
         marginal_contributions[i] = max(raw_marginal_contribution, 0)
     return marginal_contributions
 
-  def run_fractribution(self, attribution_model: str) -> None:
-    """Runs Fractribution with the given attribution_model.
+  def run_fractribution(self, normalize: bool = True) -> None:
+    """Compute fractional attribution values for all given paths.
 
     Side-effect: Updates channel_to_attribution dicts in _path_tuple_to_summary.
 
     Args:
-      attribution_model: Must be a key in ATTRIBUTION_MODELS
-    """
-    self.ATTRIBUTION_MODELS[attribution_model](self)
-
-  def run_shapley_attribution(self) -> None:
-    """Compute fractional attribution values for all given paths.
-
-    Side-effect: Updates channel_to_attribution dicts in _path_tuple_to_summary.
+      normalize: Set to True to normalize marginal contribution values and False
+          otherwise. Default: True
     """
     for path_tuple, path_summary in self._path_tuple_to_summary.items():
       # Ignore empty paths, which can happen when there is a conversion, but
@@ -137,7 +132,7 @@ class Fractribution(object):
       marginal_contributions = self._get_counterfactual_marginal_contributions(
           path_tuple)
       sum_marginal_contributions = sum(marginal_contributions)
-      if sum_marginal_contributions:
+      if normalize and sum_marginal_contributions:
         marginal_contributions = [
             marginal_contribution / sum_marginal_contributions
             for marginal_contribution in marginal_contributions]
@@ -151,19 +146,6 @@ class Fractribution(object):
             marginal_contributions[i]
             + path_summary.channel_to_attribution.get(channel, 0.0))
 
-  def run_first_touch_attribution(self) -> None:
-    """Assigns 100% attribution to the first channel in each path.
-
-    Side-effect: Updates channel_to_attribution dicts in _path_tuple_to_summary.
-    """
-    for path_tuple, path_summary in self._path_tuple_to_summary.items():
-      path_summary.channel_to_attribution = {}
-      if not path_tuple:
-        continue
-      for channel in path_tuple:
-        path_summary.channel_to_attribution[channel] = 0.0
-      path_summary.channel_to_attribution[path_tuple[0]] = 1
-
   def run_last_touch_attribution(self) -> None:
     """Assigns 100% attribution to the last channel in each path.
 
@@ -171,59 +153,10 @@ class Fractribution(object):
     """
     for path_tuple, path_summary in self._path_tuple_to_summary.items():
       path_summary.channel_to_attribution = {}
-      if not path_tuple:
-        continue
       for channel in path_tuple:
         path_summary.channel_to_attribution[channel] = 0.0
-      path_summary.channel_to_attribution[path_tuple[-1]] = 1
-
-  def run_linear_attribution(self) -> None:
-    """Assigns attribution evenly between all channels on the path.
-
-    Side-effect: Updates channel_to_attribution dicts in _path_tuple_to_summary.
-    """
-    for path_tuple, path_summary in self._path_tuple_to_summary.items():
-      path_summary.channel_to_attribution = {}
-      if not path_tuple:
-        continue
-      credit = 1.0 / len(path_tuple)
-      for channel in path_tuple:
-        path_summary.channel_to_attribution[channel] = (
-            path_summary.channel_to_attribution.get(channel, 0.0) + credit)
-
-  def run_position_based_attribution(self) -> None:
-    """Assigns attribution using the position based algorithm.
-
-    The first and last channels get 40% of the credit each, with the remaining
-    channels getting the leftover 20% distributed evenly.
-
-    Side-effect: Updates channel_to_attribution dicts in _path_tuple_to_summary.
-    """
-    for path_tuple, path_summary in self._path_tuple_to_summary.items():
-      path_summary.channel_to_attribution = {}
-      if not path_tuple:
-        continue
-      path_summary.channel_to_attribution[path_tuple[0]] = 0.4
-      path_summary.channel_to_attribution[path_tuple[-1]] = (
-          path_summary.channel_to_attribution.get(path_tuple[-1], 0) + 0.4)
-      leftover_credit = 0
-      middle_path = []
-      if len(path_tuple) == 1:
-        # All the leftover credit goes to the first and only channel
-        leftover_credit = 0.2
-        middle_path = path_tuple
-      elif len(path_tuple) == 2:
-        # The leftover credit is split between the two channels in the path.
-        leftover_credit = 0.1
-        middle_path = path_tuple
-      else:
-        # The leftover credit is evenly distributed among the middle channels.
-        leftover_credit = 0.2 / (len(path_tuple) - 2)
-        middle_path = path_tuple[1:-1]
-      for channel in middle_path:
-        path_summary.channel_to_attribution[channel] = (
-            path_summary.channel_to_attribution.get(channel, 0.0) +
-            leftover_credit)
+      if path_tuple:
+        path_summary.channel_to_attribution[path_tuple[-1]] = 1
 
   def normalize_channel_to_attribution_names(self) -> None:
     """Normalizes channel names and aggregates attribution values if necessary.
@@ -280,11 +213,3 @@ class Fractribution(object):
         client.get_table(path_summary_table),
         job_config=job_config)
     job.result()  # Waits for table load to complete.
-
-  ATTRIBUTION_MODELS = {
-      'shapley': run_shapley_attribution,
-      'first_touch': run_first_touch_attribution,
-      'last_touch': run_last_touch_attribution,
-      'position_based': run_position_based_attribution,
-      'linear': run_linear_attribution
-  }

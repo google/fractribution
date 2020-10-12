@@ -15,19 +15,21 @@
 
 # Extracts marketing channel paths for customers that have not converted.
 -- Args:
+--  conversions_by_customer_id_table: BigQuery table described in extract_conversions.sql
+--  sessions_by_customer_id_table: BigQuery table described in extract_ga_sessions.sql
 --  path_lookback_days: Restrict to marketing channels within this many days of the conversion.
 --  path_lookback_steps: Limit the number of marketing channels before the conversion.
 --  path_transform: Function name for transforming the path
 --    (e.g. unique, exposure, first, frequency).
 WITH Conversions AS (
   SELECT DISTINCT customerId
-  FROM ConversionsByCustomerId
+  FROM `{{conversions_by_customer_id_table}}`
 ),
 NonConversions AS (
   SELECT
     SessionsByCustomerId.customerId,
     MAX(visitStartTimestamp) AS nonConversionTimestamp
-  FROM SessionsByCustomerId
+  FROM `{{sessions_by_customer_id_table}}` AS SessionsByCustomerId
   LEFT JOIN Conversions
     USING (customerId)
   WHERE Conversions.customerId IS NULL
@@ -37,17 +39,11 @@ SELECT
   NonConversions.customerId,
   ARRAY_TO_STRING(TrimLongPath(
     ARRAY_AGG(channel ORDER BY visitStartTimestamp), {{path_lookback_steps}}), ' > ') AS path,
-  ARRAY_TO_STRING(
-    {% for path_transform_name, _ in path_transforms|reverse %}
-      {{path_transform_name}}(
-    {% endfor %}
-        ARRAY_AGG(channel ORDER BY visitStartTimestamp)
-    {% for _, arg_str in path_transforms %}
-      {% if arg_str %}, {{arg_str}}{% endif %})
-    {% endfor %}
-    , ' > ') AS transformedPath,
+  ARRAY_TO_STRING({{path_transform}}(TrimLongPath(
+    ARRAY_AGG(channel ORDER BY visitStartTimestamp), {{path_lookback_steps}})),
+    ' > ') AS transformedPath,
 FROM NonConversions
-LEFT JOIN SessionsByCustomerId
+LEFT JOIN `{{sessions_by_customer_id_table}}` AS SessionsByCustomerId
   ON
     NonConversions.customerId = SessionsByCustomerId.customerId
     AND TIMESTAMP_DIFF(nonConversionTimestamp, visitStartTimestamp, DAY)

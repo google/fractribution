@@ -16,7 +16,8 @@
 # SQL script for extracting the paths to conversion and non-conversion used in Fractribution.
 -- Args:
 --  fullvisitorid_userid_map_table
---  update_fullvisitorid_userid_map
+--  conversions_by_customer_id_table
+--  sessions_by_customer_id_table
 --  paths_to_conversion_table
 --  paths_to_non_conversion_table
 --  path_summary_table
@@ -29,25 +30,22 @@ CREATE TABLE IF NOT EXISTS `{{fullvisitorid_userid_map_table}}` (
   mapStartTimestamp TIMESTAMP NOT NULL,
   tableSuffixWhenAdded STRING NOT NULL
 );
-{% if update_fullvisitorid_userid_map %}
+{% if update_fullvisitorid_userid_map_table %}
 INSERT `{{fullvisitorid_userid_map_table}}`
   (fullVisitorId, userId, mapStartTimestamp, tableSuffixWhenAdded)
-{% include 'extract_fullvisitorid_userid_map.sql' %};
+{% include 'extract_fullvisitorId_userid_map.sql' %};
 {% endif %}
 
-CREATE TEMP TABLE ConversionsByCustomerId AS (
+CREATE TEMP TABLE `{{conversions_by_customer_id_table}}` AS (
 {% filter indent(width=2) %}
 {% include 'extract_conversions.sql'%}
 {% endfilter %}
--- Including blank line to force a newline, in case extract_conversions.sql ends with a comment.
 );
 
-CREATE TEMP TABLE SessionsByCustomerId AS (
+CREATE TEMP TABLE `{{sessions_by_customer_id_table}}` AS (
 {% filter indent(width=2) %}
 {% include 'extract_ga_sessions.sql' %}
 {% endfilter %}
--- Including blank line to force a newline, in case extract_ga_sessions.sql ends with a comment.
-
 );
 
 {% include 'path_transforms.sql' %}

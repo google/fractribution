@@ -1,4 +1,3 @@
-absl-py
 google-cloud-bigquery
 google-cloud-logging
 functions-framework==1.3.0
