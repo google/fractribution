@@ -238,19 +238,23 @@ def _update_fullvisitorid_userid_map_flags(flags: Dict[str, Any]) -> None:
   if 'update_fullvisitorid_userid_map' not in flags:
     flags['update_fullvisitorid_userid_map'] = True
   if 'userid_ga_custom_dimension_index' in flags:
-    userid_ga_custom_dimension_index = int(
+    flags['userid_ga_custom_dimension_index'] = int(
         flags['userid_ga_custom_dimension_index'])
-    if userid_ga_custom_dimension_index < 1:
+    if flags['userid_ga_custom_dimension_index'] < 1:
       raise ValueError(
           'userid_ga_custom_dimension_index=%s must be a positive integer' %
-          userid_ga_custom_dimension_index)
+          flags['userid_ga_custom_dimension_index'])
+  else:
+    flags['userid_ga_custom_dimension_index'] = 0
   if 'userid_ga_hits_custom_dimension_index' in flags:
-    userid_ga_hits_custom_dimension_index = int(
+    flags['userid_ga_hits_custom_dimension_index'] = int(
         flags['userid_ga_hits_custom_dimension_index'])
-    if userid_ga_hits_custom_dimension_index < 1:
+    if flags['userid_ga_hits_custom_dimension_index'] < 1:
       raise ValueError(
           'userid_ga_hits_custom_dimension_index=%s must be a positive integer'
-          % userid_ga_hits_custom_dimension_index)
+          % flags['userid_ga_hits_custom_dimension_index'])
+  else:
+    flags['userid_ga_hits_custom_dimension_index'] = 0
 
 
 def update_input_flags(flags: Dict[str, Any]) -> None:

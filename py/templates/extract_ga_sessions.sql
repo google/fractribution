@@ -67,6 +67,9 @@ WITH
       AND hits.hitNumber = 1
       AND hits.page.hostname IN ({{hostnames}})
       {% endif %}
+  ),
+  FullVisitorIdUserIdMapTable AS (
+    SELECT DISTINCT fullVisitorId, userId FROM `{{fullvisitorid_userid_map_table}}`
   )
 SELECT
   CASE
@@ -76,5 +79,5 @@ SELECT
   END AS customerId,
   FilteredSessions.* EXCEPT (fullVisitorId)
 FROM FilteredSessions
-LEFT JOIN `{{fullvisitorid_userid_map_table}}` AS FullVisitorIdUserIdMapTable USING (fullVisitorId)
+LEFT JOIN FullVisitorIdUserIdMapTable USING (fullVisitorId)
 -- Do not include a trailing ; as this query is included in another SQL query.
