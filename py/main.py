@@ -43,8 +43,6 @@ _PATH_TRANSFORMS_MAP = {
 }
 _REPORT_TABLE_PARTITION_EXP_MS = 7776000000  # 90 days
 
-EXTRACT_CHANNEL_NAME_PATTERN = re.compile(
-    r'(?:WHEN\s+.*?\s+?THEN|ELSE)\s+?\'(.*?)\'', re.DOTALL|re.IGNORECASE)
 VALID_CHANNEL_NAME_PATTERN = re.compile(r'^[a-zA-Z_]\w+$', re.ASCII)
 
 env = jinja2.Environment(
@@ -66,17 +64,6 @@ def _strip_sql(sql: str) -> str:
     if line.strip():
       lines.append(line)
   return '\n'.join(lines)
-
-
-def _extract_channel_names(channel_definitions_sql: str) -> List[str]:
-  """Returns the list of channel names from the given sql fragment.
-
-  Args:
-    channel_definitions_sql: SQL string from channel_definitions.sql
-  Returns:
-    List of channel name strings in the channel_definitions_sql string.
-  """
-  return EXTRACT_CHANNEL_NAME_PATTERN.findall(channel_definitions_sql)
 
 
 def _is_valid_column_name(column_name: str) -> bool:
@@ -203,22 +190,32 @@ def _update_path_lookback_flags(flags: Dict[str, Any]) -> None:
     flags['path_lookback_steps'] = 0
 
 
-def _update_channel_flags(flags: Dict[str, Any]) -> None:
+def _extract_channels(
+    client: bigquery.client.Client, flags: Dict[str, Any]) -> List[str]:
   """Updates the channel definitions from the channel flags.
 
-  Side-effect: Adds channels, a list of channel names, to the flags.
+  Args:
+    client: BigQuery client.
+    flags: Dictionary of all flag names to flag values.
+  Returns:
+    List of channel names.
+  """
+  extract_channels_sql = env.get_template('extract_channels.sql').render(flags)
+  return [row.channel for row in client.query(extract_channels_sql).result()]
+
+
+def _check_channels_are_valid(channels: List[str]) -> None:
+  """Dies with user-formatted error if the input channel set is invalid.
 
   Args:
-    flags: Dictionary of all flag names to flag values.
+    channels: Complete list of channel names in the fractribution run.
   Raises:
     ValueError: User formatted message on error.
   """
-  channel_definitions = env.get_template('channel_definitions.sql').render()
-  flags['channels'] = _extract_channel_names(channel_definitions)
-  if fractribution.UNMATCHED_CHANNEL not in flags['channels']:
+  if fractribution.UNMATCHED_CHANNEL not in channels:
     raise ValueError('Channel definitions must include %s.' %
                      fractribution.UNMATCHED_CHANNEL)
-  for channel in flags['channels']:
+  for channel in channels:
     if not _is_valid_column_name(channel):
       raise ValueError(
           'Channel name %s is not a valid BigQuery column name.' % channel)
@@ -272,7 +269,6 @@ def update_input_flags(flags: Dict[str, Any]) -> None:
   _update_conversion_window_date_flags(flags)
   _update_table_name_flags(flags)
   _update_path_lookback_flags(flags)
-  _update_channel_flags(flags)
   _update_fullvisitorid_userid_map_flags(flags)
   # Process the hostname restrictions.
   if 'hostnames' in flags:
@@ -349,6 +345,9 @@ def run(flags) -> int:
       bigquery.Dataset('{}.{}'.format(flags['project_id'], flags['dataset'])),
       exists_ok=True)
   extract_fractribution_input_data(client, flags)
+  # Extract the channel definitions into flags for use in later queries.
+  flags['channels'] = _extract_channels(client, flags)
+  _check_channels_are_valid(flags['channels'])
   run_fractribution(client, flags)
   generate_report(client, flags)
   return 0
