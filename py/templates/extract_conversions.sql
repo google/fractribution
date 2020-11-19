@@ -44,7 +44,7 @@ WITH
     FROM
       `{{ga_sessions_table}}` AS Sessions,
       UNNEST(hits) AS hits
-      {% if 'customDimension.' in conversion_definition_sql %}
+      {% if 'customDimensions.' in conversion_definition_sql %}
       -- Using LEFT JOIN because if the UNNEST is empty, a CROSS JOIN will be empty too, and we may
       -- want to inspect a separate UNNEST below.
       LEFT JOIN UNNEST(customDimensions) AS customDimensions
