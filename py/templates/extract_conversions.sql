@@ -49,7 +49,7 @@ WITH
       -- want to inspect a separate UNNEST below.
       LEFT JOIN UNNEST(customDimensions) AS customDimensions
       {% endif %}
-      {% if 'hitsCustomDimension.' in conversion_definition_sql %}
+      {% if 'hitsCustomDimensions.' in conversion_definition_sql %}
       LEFT JOIN UNNEST(hits.customDimensions) AS hitsCustomDimensions
       {% endif %}
       {% if 'hitsCustomVariables.' in conversion_definition_sql %},

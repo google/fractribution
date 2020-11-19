@@ -16,7 +16,6 @@
 
 """Entry point for running fractribution in Docker container."""
 
-
 import json
 import logging
 import os
@@ -38,32 +37,32 @@ logging.info(param)
 try:
   main.run(param)
   logging.info("Fractribution Done!")
-  logging.info("Shutting down.....")
-  headers = {"Metadata-Flavor": "Google"}
-  meta_response = requests.get(
-      url="http://metadata.google.internal/computeMetadata/v1/instance/name",
-      headers=headers)
-  instance_name = meta_response.text
-
-  meta_response = requests.get(
-      url="http://metadata.google.internal/computeMetadata/v1/instance/zone",
-      headers=headers)
-  zone = meta_response.text.split("/")[-1]
-
-  meta_response = requests.get(
-      url="http://metadata.google.internal/computeMetadata/v1/project/project-id",
-      headers=headers)
-  project = meta_response.text
-  compute = googleapiclient.discovery.build(
-      "compute", "v1", cache_discovery=False)
-  request = compute.instances().stop(
-      project=project, zone=zone, instance=instance_name)
-  response = request.execute()
-  logging.info(response)
-
-  logging.getLogger().handlers[0].flush()
-  time.sleep(120)
 
 except Exception as e:
   logging.error("An exception occurred")
-  logging.error(e)
+  logging.exception(e)
+
+logging.info("Shutting down.....")
+headers = {"Metadata-Flavor": "Google"}
+meta_response = requests.get(
+    url="http://metadata.google.internal/computeMetadata/v1/instance/name",
+    headers=headers)
+instance_name = meta_response.text
+meta_response = requests.get(
+    url="http://metadata.google.internal/computeMetadata/v1/instance/zone",
+    headers=headers)
+zone = meta_response.text.split("/")[-1]
+
+meta_response = requests.get(
+    url="http://metadata.google.internal/computeMetadata/v1/project/project-id",
+    headers=headers)
+project = meta_response.text
+compute = googleapiclient.discovery.build(
+    "compute", "v1", cache_discovery=False)
+request = compute.instances().stop(
+    project=project, zone=zone, instance=instance_name)
+response = request.execute()
+logging.info(response)
+
+logging.getLogger().handlers[0].flush()
+time.sleep(120)

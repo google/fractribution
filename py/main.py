@@ -163,6 +163,8 @@ def _update_conversion_window_date_flags(flags: Dict[str, Any]) -> None:
       raise ValueError('conversion_window_end_date is in the future.')
   start_date = end_date - datetime.timedelta(days=conversion_window_length)
   flags['conversion_window_start_date'] = start_date.isoformat()
+  flags['conversion_definition_sql'] = _strip_sql(
+      env.get_template('conversion_definition.sql').render(flags))
 
 
 def _update_path_lookback_flags(flags: Dict[str, Any]) -> None:
