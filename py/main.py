@@ -47,7 +47,10 @@ VALID_CHANNEL_NAME_PATTERN = re.compile(r'^[a-zA-Z_]\w+$', re.ASCII)
 
 env = jinja2.Environment(
     loader=jinja2.FileSystemLoader(
-        os.path.join(os.path.dirname(__file__), 'templates')))
+        os.path.join(os.path.dirname(__file__), 'templates')),
+    keep_trailing_newline=True,
+    lstrip_blocks=True,
+    trim_blocks=True)
 
 
 def _strip_sql(sql: str) -> str:
