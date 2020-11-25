@@ -206,7 +206,11 @@ def _extract_channels(
     List of channel names.
   """
   extract_channels_sql = env.get_template('extract_channels.sql').render(flags)
-  return [row.channel for row in client.query(extract_channels_sql).result()]
+  channels = [
+      row.channel for row in client.query(extract_channels_sql).result()]
+  if fractribution.UNMATCHED_CHANNEL not in channels:
+    channels.append(fractribution.UNMATCHED_CHANNEL)
+  return channels
 
 
 def _check_channels_are_valid(channels: List[str]) -> None:
@@ -217,9 +221,6 @@ def _check_channels_are_valid(channels: List[str]) -> None:
   Raises:
     ValueError: User formatted message on error.
   """
-  if fractribution.UNMATCHED_CHANNEL not in channels:
-    raise ValueError('Channel definitions must include %s.' %
-                     fractribution.UNMATCHED_CHANNEL)
   for channel in channels:
     if not _is_valid_column_name(channel):
       raise ValueError(
