@@ -25,53 +25,34 @@
 -- Although the column name is revenue, alternative values can be substituted, like predicted
 -- customer-lifetime value.
 --
--- Note that the column subqueries are broken down into batches of 100, otherwise the BigQuery
--- planner fails because there are too many subqueries.
-{% for batch in range(1 + channels|length // 100) %}
-CREATE OR REPLACE TEMP TABLE ChannelConversionsTable{{batch}} AS (
-  {% for channel in channels[batch * 100: (batch+1) * 100] %}
-  SELECT
-    '{{channel}}' AS channel,
-    SUM(conversions * {{channel}}) AS conversions
-  FROM `{{ path_summary_table }}`
-    {% if not loop.last %}
-  UNION ALL
-    {% endif %}
-  {% endfor %}
+-- Note that the column subqueries are broken down into batches of 50, otherwise the BigQuery
+-- planner can fail because of the query length.
+
+CREATE TEMP TABLE ConversionRevenueTable (
+  conversionWindowStartDate DATE NOT NULL,
+  conversionWindowEndDate DATE NOT NULL,
+  channel STRING NOT NULL,
+  conversions FLOAT64,
+  revenue FLOAT64
 );
+
+{% for batch in range(1 + channels|length // 50) %}
+INSERT INTO ConversionRevenueTable
+  {% for channel in channels[batch * 50: (batch+1) * 50] %}
+  SELECT
+    DATE('{{conversion_window_start_date}}'),
+    DATE('{{conversion_window_end_date}}'),
+    '{{channel}}',
+    SUM(conversions * {{channel}}),
+    SUM(revenue * {{channel}})
+  FROM `{{ path_summary_table }}`
+  {% if not loop.last %}
+  UNION ALL
+  {% endif %}
+  {% endfor %}
+  ;
 {% endfor %}
 
-CREATE OR REPLACE TEMP TABLE ChannelConversionsTable AS (
-  {% for batch in range(1 + channels|length // 100) %}
-  SELECT * FROM ChannelConversionsTable{{batch}}
-    {% if not loop.last %}
-  UNION ALL
-    {% endif %}
-  {% endfor %}
-);
-
-{% for batch in range(1 + channels|length // 100) %}
-CREATE OR REPLACE TEMP TABLE ChannelRevenueTable{{batch}} AS (
-  {% for channel in channels[batch * 100: (batch+1) * 100] %}
-  SELECT
-    '{{channel}}' AS channel,
-    SUM(revenue * {{channel}}) AS revenue
-  FROM `{{ path_summary_table }}`
-    {% if not loop.last %}
-  UNION ALL
-    {% endif %}
-  {% endfor %}
-);
-{% endfor %}
-
-CREATE OR REPLACE TEMP TABLE ChannelRevenueTable AS (
-  {% for batch in range(1 + channels|length // 100) %}
-  SELECT * FROM ChannelRevenueTable{{batch}}
-    {% if not loop.last %}
-  UNION ALL
-    {% endif %}
-  {% endfor %}
-);
 
 CREATE OR REPLACE TEMP TABLE ChannelSpendTable AS (
   {% include 'extract_channel_spend_data.sql' %}
@@ -79,14 +60,9 @@ CREATE OR REPLACE TEMP TABLE ChannelSpendTable AS (
 
 CREATE OR REPLACE TABLE `{{ report_table }}` AS (
   SELECT
-    '{{conversion_window_start_date}}' AS conversionWindowStartDate,
-    '{{conversion_window_end_date}}' AS conversionWindowEndDate,
-    ChannelConversionsTable.channel,
-    ChannelConversionsTable.conversions,
-    ChannelRevenueTable.revenue,
+    ConversionRevenueTable.*,
     ChannelSpendTable.spend,
-    SAFE_DIVIDE(ChannelRevenueTable.revenue, ChannelSpendTable.spend) AS roas
-  FROM ChannelConversionsTable
-  LEFT JOIN ChannelRevenueTable USING (channel)
+    SAFE_DIVIDE(ConversionRevenueTable.revenue, ChannelSpendTable.spend) AS roas
+  FROM ConversionRevenueTable
   LEFT JOIN ChannelSpendTable USING (channel)
 );
