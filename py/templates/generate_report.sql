@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2020 Google LLC..
+# Copyright 2021 Google LLC..
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ CREATE TEMP TABLE ConversionRevenueTable (
   revenue FLOAT64
 );
 
-{% for batch in range(1 + channels|length // 50) %}
+{% for batch in range(1 + (channels|length - 1) // 50) %}
 INSERT INTO ConversionRevenueTable
   {% for channel in channels[batch * 50: (batch+1) * 50] %}
   SELECT

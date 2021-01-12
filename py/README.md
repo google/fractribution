@@ -69,6 +69,8 @@ script `templates/extract_fullvisitorid_userid_map.sql`.
 
 * ***`project_id`***: Google Cloud `project_id` to run Fractribution inside.
 * ***`dataset`***: BigQuery dataset to write the Fractribution output.
+* ***`region`***: Location to create dataset (
+  https://cloud.google.com/bigquery/docs/locations)
 * ***`ga_sessions_table`***: Name of the GA360 BigQuery table in the format
   `<PROJECT>.<DATASET>.<TABLE>_*`.
 * ***`conversion_window_end_date`***: `'YYYY-MM-DD'` date in UTC time to define
@@ -175,6 +177,7 @@ To publish a message and trigger `FractributionTest`, use the following command:
 gcloud pubsub topics publish FractributionTestPubSub --message '{
 "project_id":"<PROJECT_ID>",
 "dataset":"<DATASET>",
+"region":"<REGION>",
 "ga_sessions_table":"bigquery-public-data.google_analytics_sample.ga_sessions_*",
 "conversion_window_end_date":"2017-08-01",
 "conversion_window_length":30,
@@ -217,6 +220,7 @@ scheduled runs of Fractribution over time. We recommend looking at:
     "<CRON_SCHEDULE>" --topic FractributionTest --message-body '{
     "project_id":"<PROJECT_ID>",
     "dataset":"<DATASET>",
+    "region":"<REGION>",
     "ga_sessions_table":"<CLIENT_GA_TABLE_PATH>.ga_sessions_*",
     "conversion_window_end_today_offset_days":1,
     "conversion_window_length":30,
@@ -294,6 +298,7 @@ That should capture both print statements and debug traces when things go wrong.
         ```
         '{"project_id":"<PROJECT_ID>",
           "dataset":"<DATASET>",
+          "region":"<REGION>",
           "ga_sessions_table":"bigquery-public-data.google_analytics_sample.ga_sessions_*",
           "conversion_window_end_date":"2017-08-01",
           "conversion_window_length":30,

@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2020 Google LLC..
+# Copyright 2021 Google LLC..
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -347,9 +347,11 @@ def run(flags) -> int:
   """
   update_input_flags(flags)
   client = bigquery.Client(flags['project_id'])
-  client.create_dataset(
-      bigquery.Dataset('{}.{}'.format(flags['project_id'], flags['dataset'])),
-      exists_ok=True)
+  dataset = bigquery.Dataset(
+      '{}.{}'.format(flags['project_id'], flags['dataset']))
+  if 'region' in flags:
+    dataset.location = flags['region']
+  client.create_dataset(dataset, exists_ok=True)
   extract_fractribution_input_data(client, flags)
   # Extract the channel definitions into flags for use in later queries.
   flags['channels'] = _extract_channels(client, flags)
