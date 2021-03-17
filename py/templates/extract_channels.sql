@@ -14,7 +14,5 @@
 # limitations under the License.
 
 # Query to extract the set of channels
--- Args:
---  sessions_by_customer_id_table: BigQuery table described in extract_ga_sessions.sql.
 SELECT DISTINCT channel
 FROM `{{channel_counts_table}}`

@@ -14,14 +14,12 @@
 # limitations under the License.
 
 # Query the number of marketing events, aggregated by channel, campaign, source and medium.
--- Args:
---  sessions_by_customer_id_table: BigQuery table described in extract_ga_sessions.sql.
 SELECT
   channel,
   campaign,
   source,
   medium,
   COUNT(*) AS number_of_events
-FROM `{{sessions_by_customer_id_table}}`
+FROM SessionsByCustomerId
 GROUP BY channel, campaign, source, medium
 ORDER BY channel, number_of_events DESC

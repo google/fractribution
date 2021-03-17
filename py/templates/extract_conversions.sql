@@ -80,10 +80,8 @@ WITH
         UNIX_SECONDS('{{conversion_window_start_date}} 00:00:00 UTC')
         AND UNIX_SECONDS('{{conversion_window_end_date}} 23:59:59 UTC')
       AND (
-        {% filter indent(width=8) %}
-        {% include 'conversion_definition.sql' %}
-        {% endfilter %}
-        )
+        {% filter indent(width=8) %}{{conversion_definition_sql}}{% endfilter %}
+      )
     GROUP BY
       fullVisitorId,
       visitStartTime,

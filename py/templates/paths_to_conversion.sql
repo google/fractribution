@@ -15,8 +15,6 @@
 
 # Extracts marketing channel paths that end in conversion for the customer.
 -- Args:
---  conversions_by_customer_id_table: BigQuery table described in extract_conversions.sql
---  sessions_by_customer_id_table: BigQuery table described in extract_ga_sessions.sql
 --  path_lookback_days: Restrict to marketing channels within this many days of the conversion.
 --  path_lookback_steps: Limit the number of marketing channels before the conversion.
 --  path_transform: Function name for transforming the path
@@ -31,8 +29,8 @@ SELECT
   ARRAY_TO_STRING({{path_transform}}(TrimLongPath(
     ARRAY_AGG(channel ORDER BY visitStartTimestamp), {{path_lookback_steps}})),
     ' > ') AS transformedPath,
-FROM `{{conversions_by_customer_id_table}}` AS ConversionsByCustomerId
-LEFT JOIN `{{sessions_by_customer_id_table}}` AS SessionsByCustomerId
+FROM ConversionsByCustomerId
+LEFT JOIN SessionsByCustomerId
   ON
     ConversionsByCustomerId.customerId = SessionsByCustomerId.customerId
     AND TIMESTAMP_DIFF(conversionTimestamp, visitStartTimestamp, DAY)

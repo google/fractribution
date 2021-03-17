@@ -15,21 +15,19 @@
 
 # Extracts marketing channel paths for customers that have not converted.
 -- Args:
---  conversions_by_customer_id_table: BigQuery table described in extract_conversions.sql
---  sessions_by_customer_id_table: BigQuery table described in extract_ga_sessions.sql
 --  path_lookback_days: Restrict to marketing channels within this many days of the conversion.
 --  path_lookback_steps: Limit the number of marketing channels before the conversion.
 --  path_transform: Function name for transforming the path
 --    (e.g. unique, exposure, first, frequency).
 WITH Conversions AS (
   SELECT DISTINCT customerId
-  FROM `{{conversions_by_customer_id_table}}`
+  FROM ConversionsByCustomerId
 ),
 NonConversions AS (
   SELECT
     SessionsByCustomerId.customerId,
     MAX(visitStartTimestamp) AS nonConversionTimestamp
-  FROM `{{sessions_by_customer_id_table}}` AS SessionsByCustomerId
+  FROM SessionsByCustomerId
   LEFT JOIN Conversions
     USING (customerId)
   WHERE Conversions.customerId IS NULL
@@ -43,7 +41,7 @@ SELECT
     ARRAY_AGG(channel ORDER BY visitStartTimestamp), {{path_lookback_steps}})),
     ' > ') AS transformedPath,
 FROM NonConversions
-LEFT JOIN `{{sessions_by_customer_id_table}}` AS SessionsByCustomerId
+LEFT JOIN SessionsByCustomerId
   ON
     NonConversions.customerId = SessionsByCustomerId.customerId
     AND TIMESTAMP_DIFF(nonConversionTimestamp, visitStartTimestamp, DAY)

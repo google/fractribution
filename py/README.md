@@ -67,48 +67,50 @@ script `templates/extract_fullvisitorid_userid_map.sql`.
 
 ## Fractribution Parameters:
 
-* ***`project_id`***: Google Cloud `project_id` to run Fractribution inside.
-* ***`dataset`***: BigQuery dataset to write the Fractribution output.
-* ***`region`***: Location to create dataset (
-  https://cloud.google.com/bigquery/docs/locations)
-* ***`ga_sessions_table`***: Name of the GA360 BigQuery table in the format
-  `<PROJECT>.<DATASET>.<TABLE>_*`.
-* ***`conversion_window_end_date`***: `'YYYY-MM-DD'` date in UTC time to define
-  the end of the reporting period (inclusive) to look for a conversion.
-* ***`conversion_window_end_today_offset_days`***: Alternative to
-    `conversion_window_end_date` used in regular scheduled runs of
-    fractribution.
-* ***`conversion_window_length`***: Number of days in the conversion window.
-* ***`path_lookback_days`***: An integer number of days to look back to build a
-  user's path of marketing channels that ends in a (non)conversion. Recommended
-  values include `30`, `14` and `7`.
-* ***`path_lookback_steps`***: Optional restriction on the maximum number of
-  marketing channels in a path. If specified, must be at least 0. Default: No
-  restriction.
-* ***`update_fullvisitorid_userid_map`***: `True` to update the internal map
-from `fullVisitorId` to `userId`, and `False` otherwise. Default: `True`.
-* ***`userid_ga_custom_dimension_index`***: If you use a custom dimension for
-  storing the `userId` in Google Analytics, set the index here. Fractribution
-  will automatically look for the top-level `userId` field, even if this index
-  is defined.
-* ***`userid_ga_hits_custom_dimension_index`***: If you use a hit-level custom
-  dimension for storing the `userId` in Google Analytics, set the index here.
-  Fractribution will automatically look for the top-level `userId` field, even
-  if this index is defined.
-* ***`path_transform`***: Fractribution extracts a path of marketing channels
-  for each user. The path transform will change this path to improve
-  matching and performance of the Fractribution algorithm on sparse data. For
-  example, if a user has several Direct to website visits, this can be
-  compressed to one representative Direct to website visit. There are 4
-  transforms to choose from. Given a path of channels
-  `(D, A, B, B, C, D, C, C)`, the transforms are:
+*   ***`project_id`***: Google Cloud `project_id` to run Fractribution inside.
+*   ***`dataset`***: BigQuery dataset to write the Fractribution output.
+*   ***`region`***: Region to create the dataset if it does not exist (see
+    https://cloud.google.com/bigquery/docs/locations).
+*   ***`ga_sessions_table`***: Name of the GA360 BigQuery table in the format
+    `<PROJECT>.<DATASET>.<TABLE>_*`.
+*   ***`hostnames`***: Comma separated list of hostnames. Restrict user sessions
+    to this set of hostnames (Default: no restriction).
+*   ***`conversion_window_end_date`***: `'YYYY-MM-DD'` date in UTC time to
+    define the end of the reporting period (inclusive) to look for a conversion.
+*   ***`conversion_window_end_today_offset_days`***: Set the conversion window
+    end date to this many days before today. This is an alternative to
+    `conversion_window_end_date` used in regular scheduled runs Fractribution.
+*   ***`conversion_window_length`***: Number of days in the conversion window.
+*   ***`path_lookback_days`***: Number of days in a user\'s path to
+    (non)conversion. Recommended values: `30`, `14`, or `7`.
+*   ***`path_lookback_steps`***: Limit the number of steps / marketing channels
+    in a user's path to (non)conversion to the most recent path_lookback_steps.
+    (Default: no restriction).
+*   ***`update_fullvisitorid_userid_map`***: `True` to update the internal map
+    from `fullVisitorId` to `userId`, and `False` otherwise. Default: `True`.
+*   ***`userid_ga_custom_dimension_index`***: If you use a custom dimension for
+    storing the `userId` in Google Analytics, set the index here. Fractribution
+    will automatically look for the top-level `userId` field, even if this index
+    is defined.
+*   ***`userid_ga_hits_custom_dimension_index`***: If you use a hit-level custom
+    dimension for storing the `userId` in Google Analytics, set the index here.
+    Fractribution will automatically look for the top-level `userId` field, even
+    if this index is defined.
+*   ***`path_transform`***: Fractribution extracts a path of marketing channels
+    for each user. The path transform will change this path to improve matching
+    and performance of the Fractribution algorithm on sparse data. For example,
+    if a user has several Direct to website visits, this can be compressed to
+    one representative Direct to website visit. There are 4 transforms to choose
+    from. Given a path of channels `(D, A, B, B, C, D, C, C)`, the transforms
+    are:
 
-    * ***`unique`***: (identity transform): yielding `(D, A, B, B, C, D, C, C)`,
-    * ***`exposure`***: (collapse sequential repeats, default option):
-    yielding `(D, A, B, C, D, C)`,
-    * ***`first`***: (remove repeats): yielding `(D, A, B, C)`,
-    * ***`frequency`***: (remove repeats, but keep a count): yielding
-    `(D(2), A(1), B(2), C(3))`
+    *   ***`unique`***: (identity transform): yielding `(D, A, B, B, C, D, C,
+        C)`,
+    *   ***`exposure`***: (collapse sequential repeats, default option):
+        yielding `(D, A, B, C, D, C)`,
+    *   ***`first`***: (remove repeats): yielding `(D, A, B, C)`,
+    *   ***`frequency`***: (remove repeats, but keep a count): yielding `(D(2),
+        A(1), B(2), C(3))`
 
 ## Tutorial: Running Fractribution on the Google Merchandise Store.
 
@@ -241,7 +243,7 @@ for installing python and running a virtual environment to sandbox dependencies.
 In particular, from inside the `fractribution/py` directory:
 
 ```
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate
 pip3 install -r requirements.txt
 export GOOGLE_APPLICATION_CREDENTIALS=<CREDENTIALS_FILENAME>

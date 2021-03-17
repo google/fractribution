@@ -17,8 +17,6 @@
 -- Args:
 --  fullvisitorid_userid_map_table
 --  update_fullvisitorid_userid_map
---  conversions_by_customer_id_table
---  sessions_by_customer_id_table
 --  paths_to_conversion_table
 --  paths_to_non_conversion_table
 --  path_summary_table
@@ -37,13 +35,13 @@ INSERT `{{fullvisitorid_userid_map_table}}`
 {% include 'extract_fullvisitorid_userid_map.sql' %};
 {% endif %}
 
-CREATE TEMP TABLE `{{conversions_by_customer_id_table}}` AS (
+CREATE TEMP TABLE ConversionsByCustomerId AS (
 {% filter indent(width=2) %}
 {% include 'extract_conversions.sql'%}
 {% endfilter %}
 );
 
-CREATE TEMP TABLE `{{sessions_by_customer_id_table}}` AS (
+CREATE TEMP TABLE SessionsByCustomerId AS (
 {% filter indent(width=2) %}
 {% include 'extract_ga_sessions.sql' %}
 {% endfilter %}
