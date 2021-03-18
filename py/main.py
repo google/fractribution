@@ -13,9 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# python3 main.py
-#--project_id=dabraham-gawindowingpipeline --dataset=fractribution --region=us-central1 --ga_sessions_table=bigquery-public-data.google_analytics_sample.ga_sessions_* --conversion_window_end_date=2017-08-01 --conversion_window_length=30 --path_lookback_days=30 --path_transform=exposure
-
 
 """Loads the data into BigQuery needed to run Fractribution."""
 
@@ -31,68 +28,61 @@ from google.cloud import bigquery
 import jinja2
 import fractribution
 
+
 FLAGS = flags.FLAGS
 
 # GCP flags.
 flags.DEFINE_string('project_id', None, 'Google Cloud project to run inside.')
 flags.DEFINE_string('dataset', None, 'BigQuery dataset to write the output.')
-flags.DEFINE_string(
-    'region', None, 'Region to create the dataset if it does not exist (see '
-    'https://cloud.google.com/bigquery/docs/locations).')
+flags.DEFINE_string('region', None,
+                    'Region to create the dataset if it does not exist (see '
+                    'https://cloud.google.com/bigquery/docs/locations).')
 
 # Google Analytics flags.
-flags.DEFINE_string(
-    'ga_sessions_table', None, 'Name of the GA360 BigQuery table in the format '
-    '`<PROJECT>.<DATASET>.<TABLE>_*`.')
-flags.DEFINE_string(
-    'hostnames', None,
-    'Comma separated list of hostnames. Restrict user sessions '
-    'to this set of hostnames (Default: no restriction).')
+flags.DEFINE_string('ga_sessions_table', None,
+                    'Name of the GA360 BigQuery table in the format '
+                    '`<PROJECT>.<DATASET>.<TABLE>_*`.')
+flags.DEFINE_string('hostnames', None,
+                    'Comma separated list of hostnames. Restrict user sessions '
+                    'to this set of hostnames (Default: no restriction).')
 
 # Conversion window flags.
 flags.DEFINE_integer('conversion_window_length', None,
                      'Number of days in the conversion window.')
 flags.DEFINE_string('conversion_window_end_date', None,
                     'Ignore conversions after this YYYY-MM-DD UTC date.')
-flags.DEFINE_integer(
-    'conversion_window_end_today_offset_days', None,
-    'Set the conversion window end date to this many days '
-    'before today. This is an alternative to '
-    'conversion_window_end_date used in regular scheduled '
-    'runs of fractribution.')
+flags.DEFINE_integer('conversion_window_end_today_offset_days', None,
+                     'Set the conversion window end date to this many days '
+                     'before today. This is an alternative to '
+                     'conversion_window_end_date used in regular scheduled '
+                     'runs of fractribution.')
 
 # Path flags
-flags.DEFINE_integer(
-    'path_lookback_days', None,
-    'Number of days in a user\'s path to (non)conversion. '
-    'Recommended values: 30, 14, or 7.')
-flags.DEFINE_integer(
-    'path_lookback_steps', None,
-    'Optional limit on the number of steps/marketing-channels '
-    'in a user\'s path to (non)conversion to the most recent '
-    'path_lookback_steps. (Default: no restriction).')
-flags.DEFINE_string(
-    'path_transform', 'exposure',
-    'Name of the path transform function for changing user '
-    'paths to improve matching and performance on sparse data. '
-    'Options: unique, exposure, first, frequency. See the '
-    'README for more details.')
+flags.DEFINE_integer('path_lookback_days', None,
+                     'Number of days in a user\'s path to (non)conversion. '
+                     'Recommended values: 30, 14, or 7.')
+flags.DEFINE_integer('path_lookback_steps', None,
+                     'Optional limit on the number of steps/marketing-channels '
+                     'in a user\'s path to (non)conversion to the most recent '
+                     'path_lookback_steps. (Default: no restriction).')
+flags.DEFINE_string('path_transform', 'exposure',
+                    'Name of the path transform function for changing user '
+                    'paths to improve matching and performance on sparse data. '
+                    'Options: unique, exposure, first, frequency. See the '
+                    'README for more details.')
 
 # UserId mapping
-flags.DEFINE_boolean(
-    'update_fullvisitorid_userid_map', True,
-    'True to update the internal map from fullVisitorId to '
-    'userId, and False otherwise. (Default: True).')
-flags.DEFINE_integer(
-    'userid_ga_custom_dimension_index', None,
-    'Index of the GA custom dimension storing the non-Google '
-    'userId. If set, a map is created between Google '
-    'fullVisitorIds and userIds. (Default: no index).')
-flags.DEFINE_integer(
-    'userid_ga_hits_custom_dimension_index', None,
-    'Index of the GA hit-level custom dimension storing the '
-    'non-Google userId. If set, a map is created between '
-    'Google fullVisitorIds and userIds. (Default: no index).')
+flags.DEFINE_boolean('update_fullvisitorid_userid_map', True,
+                     'True to update the internal map from fullVisitorId to '
+                     'userId, and False otherwise. (Default: True).')
+flags.DEFINE_integer('userid_ga_custom_dimension_index', None,
+                     'Index of the GA custom dimension storing the non-Google '
+                     'userId. If set, a map is created between Google '
+                     'fullVisitorIds and userIds. (Default: no index).')
+flags.DEFINE_integer('userid_ga_hits_custom_dimension_index', None,
+                     'Index of the GA hit-level custom dimension storing the '
+                     'non-Google userId. If set, a map is created between '
+                     'Google fullVisitorIds and userIds. (Default: no index).')
 
 _FULLVISITORID_USERID_MAP_TABLE = 'fullvisitorid_userid_map_table'
 _PATHS_TO_CONVERSION_TABLE = 'paths_to_conversion_table'
@@ -100,11 +90,9 @@ _PATHS_TO_NON_CONVERSION_TABLE = 'paths_to_non_conversion_table'
 _PATH_SUMMARY_TABLE = 'path_summary_table'
 _CHANNEL_COUNTS_TABLE = 'channel_counts_table'
 _REPORT_TABLE = 'report_table'
-_OUTPUT_TABLES = [
-    _FULLVISITORID_USERID_MAP_TABLE, _PATHS_TO_CONVERSION_TABLE,
-    _PATHS_TO_NON_CONVERSION_TABLE, _PATH_SUMMARY_TABLE, _CHANNEL_COUNTS_TABLE,
-    _REPORT_TABLE
-]
+_OUTPUT_TABLES = [_FULLVISITORID_USERID_MAP_TABLE, _PATHS_TO_CONVERSION_TABLE,
+                  _PATHS_TO_NON_CONVERSION_TABLE, _PATH_SUMMARY_TABLE,
+                  _CHANNEL_COUNTS_TABLE, _REPORT_TABLE]
 
 _PATH_TRANSFORMS_MAP = {
     'unique': 'Unique',
@@ -154,20 +142,15 @@ def _get_param_or_die(input_params: Mapping[str, Any], param: str) -> Any:
   return value
 
 
-def parse_int_param(input_params: Mapping[str, Any],
-                    param: str,
-                    lower_bound: int = None,
-                    upper_bound: int = None) -> Any:
-  """Returns int value of param.
-
-  Dies with user-formatted message on error.
+def parse_int_param(input_params: Mapping[str, Any], param: str,
+                    lower_bound: int = None, upper_bound: int = None) -> Any:
+  """Returns int value of param. Dies with user-formatted message on error.
 
   Args:
     input_params: Mapping from input parameter names to values.
     param: Name of the param to get the value of.
     lower_bound: If not None, the value must be at least lower_bound.
     upper_bound: If not None, the value must be at most upper_bound.
-
   Returns:
     Integer value of the given param.
   Raises:
@@ -191,8 +174,8 @@ def _get_table_name(
   return '{}.{}.{}_{}'.format(project, dataset, table, date_suffix)
 
 
-def _get_output_table_ids(project_id: str, dataset: str,
-                          date_suffix: str) -> Mapping[str, str]:
+def _get_output_table_ids(
+    project_id: str, dataset: str, date_suffix: str) -> Mapping[str, str]:
   """Returns mapping from output table names to full BigQuery table ids.
 
   Args:
@@ -216,7 +199,6 @@ def _get_conversion_window_date_params(
 
   Args:
     input_params: Mapping from input parameter names to values.
-
   Returns:
     Mapping from conversion window date parameters to values.
   Raises:
@@ -228,8 +210,8 @@ def _get_conversion_window_date_params(
   has_conversion_window_end_date = (
       input_params.get('conversion_window_end_date', None) is not None)
   has_conversion_window_end_today_offset_days = (
-      input_params.get('conversion_window_end_today_offset_days', None) is
-      not None)
+      input_params.get('conversion_window_end_today_offset_days', None)
+      is not None)
   if (has_conversion_window_end_date ==
       has_conversion_window_end_today_offset_days):
     raise ValueError('Specify either conversion_window_end_date or '
@@ -237,8 +219,8 @@ def _get_conversion_window_date_params(
   # Compute the conversion window end date.
   end_date = None
   if has_conversion_window_end_today_offset_days:
-    offset_days = parse_int_param(input_params,
-                                  'conversion_window_end_today_offset_days', 0)
+    offset_days = parse_int_param(
+        input_params, 'conversion_window_end_today_offset_days', 0)
     end_date = (datetime.date.today() - datetime.timedelta(days=offset_days))
     params['conversion_window_end_date'] = end_date.isoformat()
   else:
@@ -263,25 +245,24 @@ def _get_path_lookback_params(
 
   Args:
     input_params: Mapping from input parameter names to values.
-
   Returns:
     Mapping from path_lookback parameters to values.
   Raises:
     ValueError: User formatted message on error.
   """
   params = {}
-  params['path_lookback_days'] = parse_int_param(input_params,
-                                                 'path_lookback_days', 1)
+  params['path_lookback_days'] = parse_int_param(
+      input_params, 'path_lookback_days', 1)
   if input_params.get('path_lookback_steps', None) is None:
     params['path_lookback_steps'] = 0
   else:
-    params['path_lookback_steps'] = parse_int_param(input_params,
-                                                    'path_lookback_steps', 1)
+    params['path_lookback_steps'] = parse_int_param(
+        input_params, 'path_lookback_steps', 1)
   return params
 
 
-def _extract_channels(client: bigquery.client.Client,
-                      params: Mapping[str, Any]) -> List[str]:
+def _extract_channels(
+    client: bigquery.client.Client, params: Mapping[str, Any]) -> List[str]:
   """Returns the list of names by running extract_channels.sql.
 
   Args:
@@ -290,8 +271,8 @@ def _extract_channels(client: bigquery.client.Client,
   Returns:
     List of channel names.
   """
-  extract_channels_sql = jinja_env.get_template('extract_channels.sql').render(
-      params)
+  extract_channels_sql = jinja_env.get_template(
+      'extract_channels.sql').render(params)
   channels = [
       row.channel for row in client.query(extract_channels_sql).result()]
   if fractribution.UNMATCHED_CHANNEL not in channels:
@@ -305,7 +286,6 @@ def _get_fullvisitorid_userid_map_params(
 
   Args:
     input_params: Mapping from input parameter names to values.
-
   Returns:
     Mapping from userid-mapping parameters to values.
   Raises:
@@ -322,8 +302,8 @@ def _get_fullvisitorid_userid_map_params(
   else:
     params['userid_ga_custom_dimension_index'] = 0
   # Extract the hit-level custom dimension containing the userid mapping
-  if input_params.get('userid_ga_hits_custom_dimension_index',
-                      None) is not None:
+  if input_params.get(
+      'userid_ga_hits_custom_dimension_index', None) is not None:
     params['userid_ga_hits_custom_dimension_index'] = parse_int_param(
         input_params, 'userid_ga_hits_custom_dimension_index', 1)
   else:
@@ -336,7 +316,6 @@ def _get_template_params(input_params: Mapping[str, Any]) -> Dict[str, Any]:
 
   Args:
     input_params: Mapping from input parameter names to values.
-
   Returns:
     Mapping of template parameter names to parameter values.
   Raises:
@@ -345,33 +324,33 @@ def _get_template_params(input_params: Mapping[str, Any]) -> Dict[str, Any]:
   params = {}
   params['project_id'] = _get_param_or_die(input_params, 'project_id')
   params['dataset'] = _get_param_or_die(input_params, 'dataset')
-  params['ga_sessions_table'] = _get_param_or_die(input_params,
-                                                  'ga_sessions_table')
+  params['ga_sessions_table'] = _get_param_or_die(
+      input_params, 'ga_sessions_table')
   if params['ga_sessions_table'][-2:] != '_*':
     raise ValueError('ga_sessions_table parameter must end in _*')
   params.update(_get_conversion_window_date_params(input_params))
-  params.update(
-      _get_output_table_ids(params['project_id'], params['dataset'],
-                            params['conversion_window_end_date'])
-  )  # TODO: isoformat for this date
+  params.update(_get_output_table_ids(
+      params['project_id'],
+      params['dataset'],
+      datetime.date.fromisoformat(
+          params['conversion_window_end_date']).strftime('%Y%m%d')))
   params.update(_get_path_lookback_params(input_params))
   params.update(_get_fullvisitorid_userid_map_params(input_params))
   # Process the hostname restrictions.
   if input_params.get('hostnames', None) is not None:
     params['hostnames'] = ', '.join([
-        "'%s'" % hostname for hostname in input_params['hostnames'].split(',')
-    ])
+        "'%s'" % hostname for hostname in input_params['hostnames'].split(',')])
   # Check the path_transform.
   path_transform = _get_param_or_die(input_params, 'path_transform')
   if path_transform not in _PATH_TRANSFORMS_MAP.keys():
     raise ValueError(
         'Unknown path_transform. Use one of: ', _PATH_TRANSFORMS_MAP.keys())
-  params['path_transforms'] = _PATH_TRANSFORMS_MAP[path_transform]
+  params['path_transform'] = _PATH_TRANSFORMS_MAP[path_transform]
   return params
 
 
-def extract_fractribution_input_data(client: bigquery.client.Client,
-                                     params: Mapping[str, Any]) -> None:
+def extract_fractribution_input_data(
+    client: bigquery.client.Client, params: Mapping[str, Any]) -> None:
   """Extracts the input data for fractribution into BigQuery.
 
   Args:
@@ -385,8 +364,8 @@ def extract_fractribution_input_data(client: bigquery.client.Client,
   client.query(extract_data_sql).result()
 
 
-def run_fractribution(client: bigquery.client.Client,
-                      params: Mapping[str, Any]) -> None:
+def run_fractribution(
+    client: bigquery.client.Client, params: Mapping[str, Any]) -> None:
   """Runs fractribution on the extract_fractribution_input_data BigQuery tables.
 
   Args:
@@ -395,10 +374,9 @@ def run_fractribution(client: bigquery.client.Client,
   """
 
   # Step 1: Extract the paths from the path_summary_table.
-  frac = fractribution.Fractribution(
-      client.query(
-          jinja_env.get_template('select_path_summary_query.sql').render(
-              path_summary_table=params['path_summary_table'])))
+  frac = fractribution.Fractribution(client.query(
+      jinja_env.get_template('select_path_summary_query.sql').render(
+          path_summary_table=params['path_summary_table'])))
   # Step 2: Run Fractribution
   frac.run_fractribution()
   frac.normalize_channel_to_attribution_names()
@@ -409,16 +387,16 @@ def run_fractribution(client: bigquery.client.Client,
   frac.upload_path_summary(client, params['path_summary_table'])
 
 
-def generate_report(client: bigquery.client.Client,
-                    params: Mapping[str, Any]) -> None:
+def generate_report(
+    client: bigquery.client.Client, params: Mapping[str, Any]) -> None:
   """Generates the final BigQuery Table with channel-level attribution and ROAS.
 
   Args:
     client: BigQuery client.
     params: Mapping of all template parameter names to values.
   """
-  client.query(
-      jinja_env.get_template('generate_report.sql').render(params)).result()
+  client.query(jinja_env.get_template(
+      'generate_report.sql').render(params)).result()
 
 
 def run(input_params: Mapping[str, Any]) -> int:
@@ -431,8 +409,8 @@ def run(input_params: Mapping[str, Any]) -> int:
   """
   params = _get_template_params(input_params)
   client = bigquery.Client(params['project_id'])
-  dataset = bigquery.Dataset('{}.{}'.format(params['project_id'],
-                                            params['dataset']))
+  dataset = bigquery.Dataset(
+      '{}.{}'.format(params['project_id'], params['dataset']))
   if 'region' in params and params['region']:
     dataset.location = params['region']
   client.create_dataset(dataset, exists_ok=True)
@@ -453,7 +431,6 @@ def main(event, unused_context=None) -> int:
 def standalone_main(_):
   input_params = FLAGS.flag_values_dict()
   run(input_params)
-
 
 if __name__ == '__main__':
   app.run(standalone_main)
