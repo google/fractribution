@@ -110,6 +110,9 @@ script `templates/extract_fullvisitorid_userid_map.sql`.
     * ***`first`***: (remove repeats): yielding `(D, A, B, C)`,
     * ***`frequency`***: (remove repeats, but keep a count): yielding
     `(D(2), A(1), B(2), C(3))`
+* ***`attribution_model`***: Which attribution model to use. Models include:
+  `shapley`, `first_touch`, `last_touch`, `position_based` and `linear`.
+  (Default: `shapley`).
 
 ## <a id="running-fractribution"></a>Tutorial: Running Fractribution on the Google Merchandise Store.
 
@@ -155,6 +158,7 @@ python3 main.py \
 --conversion_window_length=30 \
 --path_lookback_days=30 \
 --path_transform=exposure \
+--attribution_model=shapley
 ```
 
 Once the command finishes, go to your BigQuery ***`<DATASET>`*** and look at the
@@ -223,7 +227,8 @@ gcloud pubsub topics publish FractributionTestPubSub --message '{
 "conversion_window_end_date":"2017-08-01",
 "conversion_window_length":30,
 "path_lookback_days":"30",
-"path_transform":"exposure"
+"path_transform":"exposure",
+"attribution_model":"shapley"
 }'
 ```
 
@@ -347,7 +352,8 @@ That should capture both print statements and debug traces when things go wrong.
           "conversion_window_end_date":"2017-08-01",
           "conversion_window_length":30,
           "path_lookback_days":30,
-          "path_transform":"exposure"}'
+          "path_transform":"exposure",
+          "attribution_model":"shapley"}'
         ```
 
 1.  Create a docker image. From the Fractribution code directory:
