@@ -46,6 +46,12 @@ flags.DEFINE_string('hostnames', None,
                     'Comma separated list of hostnames. Restrict user sessions '
                     'to this set of hostnames (Default: no restriction).')
 
+# Model flag
+flags.DEFINE_string('attribution_model', 'shapley',
+                    'Which Attribution model to use. Models include: shapley, '
+                    'first_touch, last_touch, position_based and linear. '
+                    '(Default: shapley).')
+
 # Conversion window flags.
 flags.DEFINE_integer('conversion_window_length', None,
                      'Number of days in the conversion window.')
@@ -84,6 +90,7 @@ flags.DEFINE_integer('userid_ga_hits_custom_dimension_index', None,
                      'non-Google userId. If set, a map is created between '
                      'Google fullVisitorIds and userIds. (Default: no index).')
 
+
 _FULLVISITORID_USERID_MAP_TABLE = 'fullvisitorid_userid_map_table'
 _PATHS_TO_CONVERSION_TABLE = 'paths_to_conversion_table'
 _PATHS_TO_NON_CONVERSION_TABLE = 'paths_to_non_conversion_table'
@@ -101,12 +108,20 @@ _PATH_TRANSFORMS_MAP = {
     'frequency': 'Frequency'
 }
 
+VALID_CHANNEL_NAME_PATTERN = re.compile(r'^[a-zA-Z_]\w+$', re.ASCII)
+
 jinja_env = jinja2.Environment(
     loader=jinja2.FileSystemLoader(
         os.path.join(os.path.dirname(__file__), 'templates')),
     keep_trailing_newline=True,
     lstrip_blocks=True,
     trim_blocks=True)
+
+
+def _is_valid_column_name(column_name: str) -> bool:
+  """Returns True if the column_name is a valid BigQuery column name."""
+  return (len(column_name) <= 128 and
+          VALID_CHANNEL_NAME_PATTERN.match(column_name) is not None)
 
 
 def _strip_sql(sql: str) -> str:
@@ -270,6 +285,8 @@ def _extract_channels(
     params: Mapping of template parameter names to values.
   Returns:
     List of channel names.
+  Raises:
+    ValueError: User-formatted error if channel is not a valid BigQuery column.
   """
   extract_channels_sql = jinja_env.get_template(
       'extract_channels.sql').render(params)
@@ -277,6 +294,9 @@ def _extract_channels(
       row.channel for row in client.query(extract_channels_sql).result()]
   if fractribution.UNMATCHED_CHANNEL not in channels:
     channels.append(fractribution.UNMATCHED_CHANNEL)
+  for channel in channels:
+    if not _is_valid_column_name(channel):
+      raise ValueError('Channel is not a legal BigQuery column name: ', channel)
   return channels
 
 
@@ -326,14 +346,20 @@ def _get_template_params(input_params: Mapping[str, Any]) -> Dict[str, Any]:
   params['dataset'] = _get_param_or_die(input_params, 'dataset')
   params['ga_sessions_table'] = _get_param_or_die(
       input_params, 'ga_sessions_table')
-  if params['ga_sessions_table'][-2:] != '_*':
-    raise ValueError('ga_sessions_table parameter must end in _*')
+  # Check the model
+  params['attribution_model'] = input_params['attribution_model']
+  if (params['attribution_model'] not in
+      fractribution.Fractribution.ATTRIBUTION_MODELS):
+    raise ValueError(
+        'Unknown attribution_model. Use one of: ',
+        fractribution.Fractribution.ATTRIBUTION_MODELS.keys())
   params.update(_get_conversion_window_date_params(input_params))
   params.update(_get_output_table_ids(
       params['project_id'],
       params['dataset'],
-      datetime.date.fromisoformat(
-          params['conversion_window_end_date']).strftime('%Y%m%d')))
+      datetime.datetime.strptime(
+          params['conversion_window_end_date'],
+          '%Y-%m-%d').date().strftime('%Y%m%d')))
   params.update(_get_path_lookback_params(input_params))
   params.update(_get_fullvisitorid_userid_map_params(input_params))
   # Process the hostname restrictions.
@@ -377,8 +403,7 @@ def run_fractribution(
   frac = fractribution.Fractribution(client.query(
       jinja_env.get_template('select_path_summary_query.sql').render(
           path_summary_table=params['path_summary_table'])))
-  # Step 2: Run Fractribution
-  frac.run_fractribution()
+  frac.run_fractribution(params['attribution_model'])
   frac.normalize_channel_to_attribution_names()
   # Step 3: Create the path_summary_table and upload the results.
   create_path_summary_table_sql = jinja_env.get_template(

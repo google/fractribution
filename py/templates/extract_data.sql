@@ -39,12 +39,15 @@ CREATE TEMP TABLE ConversionsByCustomerId AS (
 {% filter indent(width=2) %}
 {% include 'extract_conversions.sql'%}
 {% endfilter %}
+-- Including blank line to force a newline, in case extract_conversions.sql ends with a comment.
 );
 
 CREATE TEMP TABLE SessionsByCustomerId AS (
 {% filter indent(width=2) %}
 {% include 'extract_ga_sessions.sql' %}
 {% endfilter %}
+-- Including blank line to force a newline, in case extract_ga_sessions.sql ends with a comment.
+
 );
 
 {% include 'path_transforms.sql' %}

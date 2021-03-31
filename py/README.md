@@ -67,52 +67,51 @@ script `templates/extract_fullvisitorid_userid_map.sql`.
 
 ## Fractribution Parameters:
 
-*   ***`project_id`***: Google Cloud `project_id` to run Fractribution inside.
-*   ***`dataset`***: BigQuery dataset to write the Fractribution output.
-*   ***`region`***: Region to create the dataset if it does not exist (see
-    https://cloud.google.com/bigquery/docs/locations).
-*   ***`ga_sessions_table`***: Name of the GA360 BigQuery table in the format
-    `<PROJECT>.<DATASET>.<TABLE>_*`.
-*   ***`hostnames`***: Comma separated list of hostnames. Restrict user sessions
-    to this set of hostnames (Default: no restriction).
-*   ***`conversion_window_end_date`***: `'YYYY-MM-DD'` date in UTC time to
-    define the end of the reporting period (inclusive) to look for a conversion.
-*   ***`conversion_window_end_today_offset_days`***: Set the conversion window
-    end date to this many days before today. This is an alternative to
-    `conversion_window_end_date` used in regular scheduled runs Fractribution.
-*   ***`conversion_window_length`***: Number of days in the conversion window.
-*   ***`path_lookback_days`***: Number of days in a user\'s path to
-    (non)conversion. Recommended values: `30`, `14`, or `7`.
-*   ***`path_lookback_steps`***: Limit the number of steps / marketing channels
-    in a user's path to (non)conversion to the most recent path_lookback_steps.
-    (Default: no restriction).
-*   ***`update_fullvisitorid_userid_map`***: `True` to update the internal map
-    from `fullVisitorId` to `userId`, and `False` otherwise. Default: `True`.
-*   ***`userid_ga_custom_dimension_index`***: If you use a custom dimension for
-    storing the `userId` in Google Analytics, set the index here. Fractribution
-    will automatically look for the top-level `userId` field, even if this index
-    is defined.
-*   ***`userid_ga_hits_custom_dimension_index`***: If you use a hit-level custom
-    dimension for storing the `userId` in Google Analytics, set the index here.
-    Fractribution will automatically look for the top-level `userId` field, even
-    if this index is defined.
-*   ***`path_transform`***: Fractribution extracts a path of marketing channels
-    for each user. The path transform will change this path to improve matching
-    and performance of the Fractribution algorithm on sparse data. For example,
-    if a user has several Direct to website visits, this can be compressed to
-    one representative Direct to website visit. There are 4 transforms to choose
-    from. Given a path of channels `(D, A, B, B, C, D, C, C)`, the transforms
-    are:
+* ***`project_id`***: Google Cloud `project_id` to run Fractribution inside.
+* ***`dataset`***: BigQuery dataset to write the Fractribution output.
+* ***`region`***: Region to create the dataset if it does not exist (see
+  https://cloud.google.com/bigquery/docs/locations).
+* ***`ga_sessions_table`***: Name of the GA360 BigQuery table in the format
+  `<PROJECT>.<DATASET>.<TABLE>_*`.
+* ***`hostnames`***: Comma separated list of hostnames. Restrict user sessions
+  to this set of hostnames (Default: no restriction).
+* ***`conversion_window_end_date`***: `'YYYY-MM-DD'` date in UTC time to define
+  the end of the reporting period (inclusive) to look for a conversion.
+* ***`conversion_window_end_today_offset_days`***: Set the conversion window end
+  date to this many days before today. This is an alternative to
+  `conversion_window_end_date` used in regular scheduled runs Fractribution.
+* ***`conversion_window_length`***: Number of days in the conversion window.
+* ***`path_lookback_days`***: Number of days in a user\'s path to
+  (non)conversion. Recommended values: `30`, `14`, or `7`.
+* ***`path_lookback_steps`***: Limit the number of steps / marketing channels in
+  a user's path to (non)conversion to the most recent path_lookback_steps.
+  (Default: no restriction).
+* ***`update_fullvisitorid_userid_map`***: `True` to update the internal map
+  from `fullVisitorId` to `userId`, and `False` otherwise. Default: `True`.
+* ***`userid_ga_custom_dimension_index`***: If you use a custom dimension for
+  storing the `userId` in Google Analytics, set the index here. Fractribution
+  will automatically look for the top-level `userId` field, even if this index
+  is defined.
+* ***`userid_ga_hits_custom_dimension_index`***: If you use a hit-level custom
+  dimension for storing the `userId` in Google Analytics, set the index here.
+  Fractribution will automatically look for the top-level `userId` field, even
+  if this index is defined.
+* ***`path_transform`***: Fractribution extracts a path of marketing channels
+  for each user. The path transform will change this path to improve
+  matching and performance of the Fractribution algorithm on sparse data. For
+  example, if a user has several Direct to website visits, this can be
+  compressed to one representative Direct to website visit. There are 4
+  transforms to choose from. Given a path of channels
+  `(D, A, B, B, C, D, C, C)`, the transforms are:
 
-    *   ***`unique`***: (identity transform): yielding `(D, A, B, B, C, D, C,
-        C)`,
-    *   ***`exposure`***: (collapse sequential repeats, default option):
-        yielding `(D, A, B, C, D, C)`,
-    *   ***`first`***: (remove repeats): yielding `(D, A, B, C)`,
-    *   ***`frequency`***: (remove repeats, but keep a count): yielding `(D(2),
-        A(1), B(2), C(3))`
+    * ***`unique`***: (identity transform): yielding `(D, A, B, B, C, D, C, C)`,
+    * ***`exposure`***: (collapse sequential repeats, default option):
+    yielding `(D, A, B, C, D, C)`,
+    * ***`first`***: (remove repeats): yielding `(D, A, B, C)`,
+    * ***`frequency`***: (remove repeats, but keep a count): yielding
+    `(D(2), A(1), B(2), C(3))`
 
-## Tutorial: Running Fractribution on the Google Merchandise Store.
+## <a id="running-fractribution"></a>Tutorial: Running Fractribution on the Google Merchandise Store.
 
 We will run Fractribution over the
 [publicly-available GA360 dataset](https://support.google.com/analytics/answer/7586738?hl=en)
@@ -121,8 +120,48 @@ ecommerce store that sells Google-branded merchandise. You can view the
 obfuscated data on BigQuery
 [here](https://bigquery.cloud.google.com/table/bigquery-public-data:google_analytics_sample.ga_sessions_20170801).
 
+The easiest way to run Fractribution is manually from the command line. This
+works well for experimenting (e.g. with new conversion or channel definitions)
+and debugging. If you want to setup Fractribution to run on a schedule though,
+please see the following section on [Deploying Fractribution](#deploying-fractribution).
 
-### Deploying Fractribution on GCP: Cloud Functions vs VM
+
+To run from the command line, begin by downloading the fractribution folder to
+your local computer and then change directory into `fractribution/py`
+
+Next, select values for the following:
+
+* ***`<PROJECT_ID>`***: GCP project in which to run Fractribution
+* ***`<DATASET>`***: BigQuery dataset name to store the Fractribution output.
+* ***`<REGION>`***:
+   [Region name](https://cloud.google.com/bigquery/docs/locations) in which to
+   create ***`<DATASET>`*** if it doesn't already exist. E.g. us-central1
+
+
+
+Then run the following command to authenticate with GCP:
+
+```export GOOGLE_APPLICATION_CREDENTIALS=<CREDENTIALS_FILENAME>```
+
+Finally, run Fractribution with the following command:
+
+```
+python3 main.py \
+--project_id=<PROJECT_ID> \
+--dataset=<DATASET>
+--region=<REGION> \
+--ga_sessions_table=bigquery-public-data.google_analytics_sample.ga_sessions_* \
+--conversion_window_end_date=2017-08-01 \
+--conversion_window_length=30 \
+--path_lookback_days=30 \
+--path_transform=exposure \
+```
+
+Once the command finishes, go to your BigQuery ***`<DATASET>`*** and look at the
+results, including the final report table.
+
+
+### <a id="deploying-fractribution"></a>Deploying Fractribution on GCP: Cloud Functions vs VM
 
 We recommend deploying Fractribution via Cloud Functions. Setup and maintenance
 are easier, and because Cloud Functions are serverless, you only pay for what
@@ -131,13 +170,13 @@ and 9 minutes of runtime. If Cloud Functions run out of memory or time on your
 data, switch to the VM approach, which allows you to select a compute engine
 with much higher memory and no time limits.
 
-Either way, for this tutorial, please select:
+Either way, as for the command line approach above, please select:
 
 * ***`<PROJECT_ID>`***: GCP project in which to run Fractribution
 * ***`<DATASET>`***: BigQuery dataset name to store the Fractribution output.
 * ***`<REGION>`***:
-   [Region name](https://cloud.google.com/bigquery/docs/locations) containing
-   the dataset.
+   [Region name](https://cloud.google.com/bigquery/docs/locations) in which to
+   create ***`<DATASET>`*** if it doesn't already exist. E.g. us-central1
 
 ### Approach 1: Running Python Cloud Functions (recommended)
 
@@ -234,8 +273,11 @@ scheduled runs of Fractribution over time. We recommend looking at:
 
 If you need to debug changes you've made, it is much faster to do locally,
 rather than going through the slower process of uploading several versions of
-the Cloud Function for each small change. Use the `functions-framework` to debug
-locally as below:
+the Cloud Function for each small change. The easiest way to debug is to use the
+standalone command-line version of Fractribution, as
+[described above](#running-fractribution). However, Cloud Functions do have a
+local-execution framework called `functions-framework`, which is described
+below:
 
 First, follow
 [these instructions](https://cloud.google.com/python/setup?hl=en#installing_python)
