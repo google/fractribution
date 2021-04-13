@@ -44,12 +44,12 @@ WITH
     FROM
       `{{ga_sessions_table}}` AS Sessions,
       UNNEST(hits) AS hits
-      {% if 'customDimension.' in conversion_definition_sql %}
+      {% if 'customDimensions.' in conversion_definition_sql %}
       -- Using LEFT JOIN because if the UNNEST is empty, a CROSS JOIN will be empty too, and we may
       -- want to inspect a separate UNNEST below.
       LEFT JOIN UNNEST(customDimensions) AS customDimensions
       {% endif %}
-      {% if 'hitsCustomDimension.' in conversion_definition_sql %}
+      {% if 'hitsCustomDimensions.' in conversion_definition_sql %}
       LEFT JOIN UNNEST(hits.customDimensions) AS hitsCustomDimensions
       {% endif %}
       {% if 'hitsCustomVariables.' in conversion_definition_sql %},
@@ -80,10 +80,8 @@ WITH
         UNIX_SECONDS('{{conversion_window_start_date}} 00:00:00 UTC')
         AND UNIX_SECONDS('{{conversion_window_end_date}} 23:59:59 UTC')
       AND (
-        {% filter indent(width=8) %}
-        {% include 'conversion_definition.sql' %}
-        {% endfilter %}
-        )
+        {% filter indent(width=8) %}{{conversion_definition_sql}}{% endfilter %}
+      )
     GROUP BY
       fullVisitorId,
       visitStartTime,

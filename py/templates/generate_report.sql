@@ -24,40 +24,45 @@
 --
 -- Although the column name is revenue, alternative values can be substituted, like predicted
 -- customer-lifetime value.
-CREATE OR REPLACE TABLE {{ report_table }} AS (
-  WITH
-    ConversionsTable AS (
-      {% for channel in channels %}
-      SELECT
-        '{{channel}}' AS channel,
-        SUM(conversions * {{channel}}) AS conversions
-      FROM {{ path_summary_table }}
-      {% if not loop.last %}
-      UNION ALL
-      {% endif %}
-      {% endfor %}
-   ), RevenueTable AS (
-     {% for channel in channels %}
-     SELECT
-       '{{channel}}' AS channel,
-       SUM(revenue * {{channel}}) AS revenue
-     FROM {{ path_summary_table }}
-     {% if not loop.last %}
-     UNION ALL
-     {% endif %}
-     {% endfor %}
-  ), ChannelSpendTable AS (
-    {% include 'extract_channel_spend_data.sql' %}
-  )
+--
+-- Note that the column subqueries are broken down into batches of 50, otherwise the BigQuery
+-- planner can fail because of the query length.
+
+CREATE TEMP TABLE ConversionRevenueTable (
+  conversionWindowStartDate DATE NOT NULL,
+  conversionWindowEndDate DATE NOT NULL,
+  channel STRING NOT NULL,
+  conversions FLOAT64,
+  revenue FLOAT64
+);
+
+{% for batch in range(1 + (channels|length - 1) // 50) %}
+INSERT INTO ConversionRevenueTable
+  {% for channel in channels[batch * 50: (batch+1) * 50] %}
   SELECT
-    '{{conversion_window_start_date}}' AS conversionWindowStartDate,
-    '{{conversion_window_end_date}}' AS conversionWindowEndDate,
-    channel,
-    conversions,
-    revenue,
-    spend,
-    revenue / spend AS roas
-  FROM ConversionsTable
-  INNER JOIN RevenueTable USING (channel)
+    DATE('{{conversion_window_start_date}}'),
+    DATE('{{conversion_window_end_date}}'),
+    '{{channel}}',
+    SUM(conversions * {{channel}}),
+    SUM(revenue * {{channel}})
+  FROM `{{ path_summary_table }}`
+  {% if not loop.last %}
+  UNION ALL
+  {% endif %}
+  {% endfor %}
+  ;
+{% endfor %}
+
+
+CREATE OR REPLACE TEMP TABLE ChannelSpendTable AS (
+  {% include 'extract_channel_spend_data.sql' %}
+);
+
+CREATE OR REPLACE TABLE `{{ report_table }}` AS (
+  SELECT
+    ConversionRevenueTable.*,
+    ChannelSpendTable.spend,
+    SAFE_DIVIDE(ConversionRevenueTable.revenue, ChannelSpendTable.spend) AS roas
+  FROM ConversionRevenueTable
   LEFT JOIN ChannelSpendTable USING (channel)
-)
+);

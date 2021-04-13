@@ -13,13 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Query the number of marketing events, aggregated by channel, campaign, source and medium.
-SELECT
-  channel,
-  campaign,
-  source,
-  medium,
-  COUNT(*) AS number_of_events
-FROM SessionsByCustomerId
-GROUP BY channel, campaign, source, medium
-ORDER BY channel, number_of_events DESC
+# Query to extract the set of channels
+SELECT DISTINCT channel
+FROM `{{channel_counts_table}}`
