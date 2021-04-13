@@ -26,9 +26,15 @@ SELECT
   ARRAY_TO_STRING(TrimLongPath(
     ARRAY_AGG(channel ORDER BY visitStartTimestamp), {{path_lookback_steps}}),
     ' > ') AS path,
-  ARRAY_TO_STRING({{path_transform}}(TrimLongPath(
-    ARRAY_AGG(channel ORDER BY visitStartTimestamp), {{path_lookback_steps}})),
-    ' > ') AS transformedPath,
+  ARRAY_TO_STRING(
+    {% for path_transform_name, _ in path_transforms|reverse %}
+      {{path_transform_name}}(
+    {% endfor %}
+        ARRAY_AGG(channel ORDER BY visitStartTimestamp)
+    {% for _, arg_str in path_transforms %}
+      {% if arg_str %}, {{arg_str}}{% endif %})
+    {% endfor %}
+    , ' > ') AS transformedPath,
 FROM ConversionsByCustomerId
 LEFT JOIN SessionsByCustomerId
   ON

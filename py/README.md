@@ -110,6 +110,18 @@ script `templates/extract_fullvisitorid_userid_map.sql`.
     * ***`first`***: (remove repeats): yielding `(D, A, B, C)`,
     * ***`frequency`***: (remove repeats, but keep a count): yielding
     `(D(2), A(1), B(2), C(3))`
+
+  Path transforms can now be chained together and are executed in the order
+  specified. To specify multiple transforms from the command line, use one
+  separate --path_transform for each transform. Otherwise, pass in a list of
+  strings, one per transform. Additional options for transform are:
+
+    * ***`trimLongPath(n)`***:
+    * ***`removeIfNotAll(channel)`***:
+    * ***`removeIfLastAndNotAll(channel)`***:
+
+  Both removeIfNotAll and removeIfLastAndNotAll are typically used to downweight
+  the contribution of the 'Direct' / 'Direct-to-site' channel.
 * ***`attribution_model`***: Which attribution model to use. Models include:
   `shapley`, `first_touch`, `last_touch`, `position_based` and `linear`.
   (Default: `shapley`).

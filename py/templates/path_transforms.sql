@@ -29,7 +29,42 @@ CREATE TEMP FUNCTION TrimLongPath(path ARRAY<STRING>, path_lookback_steps INT64)
 RETURNS ARRAY<STRING>
 LANGUAGE js AS """
   if (path_lookback_steps > 0) {
-    return path.slice(Math.max(0, path.length - path_lookback_steps))
+    return path.slice(Math.max(0, path.length - path_lookback_steps));
+  }
+  return path;
+""";
+
+-- Returns the path with all copies of targetElem removed, unless the path consists only of
+-- targetElems, in which case the original path is returned.
+CREATE TEMP FUNCTION RemoveIfNotAll(path ARRAY<STRING>, targetElem STRING)
+RETURNS ARRAY<STRING>
+LANGUAGE js AS """
+  var transformedPath = [];
+  for (var i = 0; i < path.length; i++) {
+    if (path[i] !== targetElem) {
+      transformedPath.push(path[i]);
+    }
+  }
+  if (!transformedPath.length) {
+    return path;
+  }
+  return transformedPath;
+""";
+
+-- Returns the path with all copies of targetElem removed from the tail, unless the path consists
+-- only of targetElems, in which case the original path is returned.
+CREATE TEMP FUNCTION RemoveIfLastAndNotAll(path ARRAY<STRING>, targetElem STRING)
+RETURNS ARRAY<STRING>
+LANGUAGE js AS """
+  var tailIndex = path.length;
+  for (var i = path.length - 1; i >= 0; i = i - 1) {
+    if (path[i] != targetElem) {
+      break;
+    }
+    tailIndex = i;
+  }
+  if (tailIndex > 0) {
+    return path.slice(0, tailIndex);
   }
   return path;
 """;

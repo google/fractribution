@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 """Loads the data into BigQuery needed to run Fractribution."""
 
 import base64
@@ -21,7 +20,7 @@ import datetime
 import json
 import os
 import re
-from typing import Any, Dict, List, Mapping
+from typing import Any, Dict, List, Mapping, Tuple
 from absl import app
 from absl import flags
 from google.cloud import bigquery
@@ -71,11 +70,14 @@ flags.DEFINE_integer('path_lookback_steps', None,
                      'Optional limit on the number of steps/marketing-channels '
                      'in a user\'s path to (non)conversion to the most recent '
                      'path_lookback_steps. (Default: no restriction).')
-flags.DEFINE_string('path_transform', 'exposure',
-                    'Name of the path transform function for changing user '
-                    'paths to improve matching and performance on sparse data. '
-                    'Options: unique, exposure, first, frequency. See the '
-                    'README for more details.')
+flags.DEFINE_multi_string('path_transform', 'exposure',
+                          'Name of the path transform function(s) for changing '
+                          'user paths to improve matching and performance on '
+                          'sparse data. Note path transforms are executed in '
+                          'the order that they are specified. Options: unique, '
+                          'exposure, first, frequency, trimLongPath, '
+                          'removeIfNotAll and removeIfLastAndNotAll. See the '
+                          'README for more details.')
 
 # UserId mapping
 flags.DEFINE_boolean('update_fullvisitorid_userid_map', True,
@@ -105,7 +107,10 @@ _PATH_TRANSFORMS_MAP = {
     'unique': 'Unique',
     'exposure': 'Exposure',
     'first': 'First',
-    'frequency': 'Frequency'
+    'frequency': 'Frequency',
+    'trimLongPath': 'TrimLongPath',
+    'removeIfNotAll': 'RemoveIfNotAll',
+    'removeIfLastAndNotAll': 'RemoveIfLastAndNotAll'
 }
 
 VALID_CHANNEL_NAME_PATTERN = re.compile(r'^[a-zA-Z_]\w+$', re.ASCII)
@@ -276,6 +281,38 @@ def _get_path_lookback_params(
   return params
 
 
+def parse_path_transforms(
+    path_transforms_arg: List[str]) -> List[Tuple[str, str]]:
+  """Parses the given list of path transform strings from the command line.
+
+  Args:
+    path_transforms_arg: List of path transforms. Each path transform must be a
+                         from _PATH_TRANSFORMS_MAP. The path transform string
+                         can include arguments surrounded by () if needed.
+
+  Returns:
+    List of (path_transform_name, arg_str) pairs, where the path_transform_name
+    is from templates/path_transforms.sql, and the arg_str is empty or includes
+    the full argument string for the path transform, with no surrounding
+    parentheses.
+  Raises:
+    ValueError: User formatted message on error if a path_transform is invalid.
+  """
+  path_transforms = []
+  for path_transform in path_transforms_arg:
+    match = re.match(r'^(\w+)(?:\((.*)\))?$', path_transform)
+    if match is None:
+      raise ValueError('Unable to parse path_transform: ', path_transform)
+    path_transform_name = match.groups()[0]
+    arg_str = match.groups()[1]
+    if path_transform_name not in _PATH_TRANSFORMS_MAP.keys():
+      raise ValueError(
+          'Unknown path_transform. Use one of: ', _PATH_TRANSFORMS_MAP.keys())
+    path_transforms.append(
+        (_PATH_TRANSFORMS_MAP[path_transform_name], arg_str))
+  return path_transforms
+
+
 def _extract_channels(
     client: bigquery.client.Client, params: Mapping[str, Any]) -> List[str]:
   """Returns the list of names by running extract_channels.sql.
@@ -366,12 +403,23 @@ def _get_template_params(input_params: Mapping[str, Any]) -> Dict[str, Any]:
   if input_params.get('hostnames', None) is not None:
     params['hostnames'] = ', '.join([
         "'%s'" % hostname for hostname in input_params['hostnames'].split(',')])
-  # Check the path_transform.
-  path_transform = _get_param_or_die(input_params, 'path_transform')
-  if path_transform not in _PATH_TRANSFORMS_MAP.keys():
-    raise ValueError(
-        'Unknown path_transform. Use one of: ', _PATH_TRANSFORMS_MAP.keys())
-  params['path_transform'] = _PATH_TRANSFORMS_MAP[path_transform]
+  # Check the path_transforms.
+  path_transform_param = _get_param_or_die(input_params, 'path_transform')
+  # For backwards compatibility, if path_transform_param is a string, for
+  # example, if Fractribution is invoked as a cloud function, convert it
+  # to a list.
+  if isinstance(path_transform_param, str):
+    path_transform_param = [path_transform_param]
+  params['path_transforms'] = []
+  if params['path_lookback_steps'] > 0:
+    # Implementation note: Line below is equivalent to .append(), however append
+    # does not pass the static type checking.
+    params['path_transforms'] = [(
+        _PATH_TRANSFORMS_MAP['trimLongPath'],
+        str(params['path_lookback_steps']))]
+  params['path_transforms'] += parse_path_transforms(path_transform_param)
+  if not params['path_transforms']:
+    raise ValueError('Must specify at least one path_transform.')
   return params
 
 
