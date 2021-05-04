@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2021 Google LLC..
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,4 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-SELECT transformedPath, conversions, nonConversions, revenue FROM `{{path_summary_table}}`
+CREATE OR REPLACE TABLE `{{path_summary_table}}` (
+  transformedPath STRING NOT NULL,
+  conversions INT64 NOT NULL,
+  nonConversions INT64 NOT NULL,
+  revenue FLOAT64,
+  {% for channel in channels %}
+  {{channel}} FLOAT64,
+  {% endfor %}
+);
