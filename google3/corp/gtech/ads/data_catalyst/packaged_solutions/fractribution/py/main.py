@@ -20,7 +20,7 @@ import datetime
 import json
 import os
 import re
-from typing import Any, Dict, List, Mapping, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 from absl import app
 from absl import flags
 from google.cloud import bigquery
@@ -163,7 +163,8 @@ def _get_param_or_die(input_params: Mapping[str, Any], param: str) -> Any:
 
 
 def parse_int_param(input_params: Mapping[str, Any], param: str,
-                    lower_bound: int = None, upper_bound: int = None) -> Any:
+                    lower_bound: Optional[int] = None,
+                    upper_bound: Optional[int] = None) -> Any:
   """Returns int value of param. Dies with user-formatted message on error.
 
   Args:
@@ -282,7 +283,7 @@ def _get_path_lookback_params(
 
 
 def parse_path_transforms(
-    path_transforms_arg: List[str]) -> List[Tuple[str, str]]:
+    path_transforms_arg: List[str]) -> List[Tuple[str, Optional[str]]]:
   """Parses the given list of path transform strings from the command line.
 
   Args:
@@ -458,6 +459,10 @@ def run_fractribution(
       'create_path_summary_results_table.sql').render(params)
   client.query(create_path_summary_table_sql).result()
   frac.upload_path_summary(client, params['path_summary_table'])
+  frac.upload_report_table(client,
+                           params['conversion_window_start_date'],
+                           params['conversion_window_end_date'],
+                           params['report_table'])
 
 
 def generate_report(

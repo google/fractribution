@@ -21,7 +21,9 @@
 -- Note that all flags are passed into this template (e.g. conversion_window_start/end_date).
 --
 -- Sample uniform spend data for bigquery-public-data.google_analytics_sample.ga_sessions_*:
+{% raw %}
 -- SELECT * FROM UNNEST({{channels}}) AS channel, UNNEST([10000]) AS spend
+{% endraw %}
 --
 -- DEFAULT: If no spend information is available, use the SQL below to assign a NULL value to the
 --  spend for each channel.

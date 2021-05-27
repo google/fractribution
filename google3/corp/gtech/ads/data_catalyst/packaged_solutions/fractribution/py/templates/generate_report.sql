@@ -23,45 +23,21 @@
 --
 -- Although the column name is revenue, alternative values can be substituted, like predicted
 -- customer-lifetime value.
---
--- Note that the column subqueries are broken down into batches of 50, otherwise the BigQuery
--- planner can fail because of the query length.
-
-CREATE TEMP TABLE ConversionRevenueTable (
-  conversionWindowStartDate DATE NOT NULL,
-  conversionWindowEndDate DATE NOT NULL,
-  channel STRING NOT NULL,
-  conversions FLOAT64,
-  revenue FLOAT64
-);
-
-{% for batch in range(1 + (channels|length - 1) // 50) %}
-INSERT INTO ConversionRevenueTable
-  {% for channel in channels[batch * 50: (batch+1) * 50] %}
-  SELECT
-    DATE('{{conversion_window_start_date}}'),
-    DATE('{{conversion_window_end_date}}'),
-    '{{channel}}',
-    SUM(conversions * {{channel}}),
-    SUM(revenue * {{channel}})
-  FROM `{{ path_summary_table }}`
-  {% if not loop.last %}
-  UNION ALL
-  {% endif %}
-  {% endfor %}
-  ;
-{% endfor %}
-
 
 CREATE OR REPLACE TEMP TABLE ChannelSpendTable AS (
   {% include 'extract_channel_spend_data.sql' %}
 );
 
-CREATE OR REPLACE TABLE `{{ report_table }}` AS (
+CREATE OR REPLACE TABLE `{{report_table}}` AS (
   SELECT
-    ConversionRevenueTable.*,
+    ConversionRevenueTable.conversionWindowStartDate,
+    ConversionRevenueTable.conversionWindowEndDate,
+    ConversionRevenueTable.channel,
+    ConversionRevenueTable.conversions,
+    ConversionRevenueTable.revenue,
     ChannelSpendTable.spend,
     SAFE_DIVIDE(ConversionRevenueTable.revenue, ChannelSpendTable.spend) AS roas
-  FROM ConversionRevenueTable
+  FROM `{{report_table}}` AS ConversionRevenueTable
   LEFT JOIN ChannelSpendTable USING (channel)
+  ORDER BY conversions DESC
 );

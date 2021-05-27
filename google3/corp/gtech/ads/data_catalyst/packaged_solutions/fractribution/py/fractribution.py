@@ -18,7 +18,7 @@
 import io
 import json
 import re
-from typing import Iterable, List, Tuple
+from typing import Iterable, List, Mapping, Tuple
 from google.cloud import bigquery
 
 # Default channel name when no match is found.
@@ -278,6 +278,83 @@ class Fractribution(object):
     job = client.load_table_from_file(
         self._path_summary_to_json_stringio(),
         client.get_table(path_summary_table),
+        job_config=job_config)
+    job.result()  # Waits for table load to complete.
+
+  def _get_channel_to_attribution(self) -> Mapping[str, float]:
+    """Returns a mapping from channel to overall conversion attribution.
+
+    Returns:
+      Mapping from channel to overall conversion attribution.
+    """
+    default_attribution = {UNMATCHED_CHANNEL: 1.0}
+    overall_channel_to_attribution = {}
+    for path_summary in self._path_tuple_to_summary.values():
+      channel_to_attribution = path_summary.channel_to_attribution
+      if not channel_to_attribution:
+        channel_to_attribution = default_attribution
+      for channel, attribution in channel_to_attribution.items():
+        overall_channel_to_attribution[channel] = (
+            overall_channel_to_attribution.get(channel, 0.0)
+            + attribution * path_summary.conversions)
+    return overall_channel_to_attribution
+
+  def _get_channel_to_revenue(self) -> Mapping[str, float]:
+    """Returns a mapping from channel to overall revenue attribution.
+
+    Returns:
+      Mapping from channel to overall revenue attribution.
+    """
+    default_attribution = {UNMATCHED_CHANNEL: 1.0}
+    overall_channel_to_revenue = {}
+    for path_summary in self._path_tuple_to_summary.values():
+      channel_to_attribution = path_summary.channel_to_attribution
+      if not channel_to_attribution:
+        channel_to_attribution = default_attribution
+      revenue = path_summary.revenue
+      if not revenue:
+        revenue = 0.0
+      for channel, attribution in channel_to_attribution.items():
+        overall_channel_to_revenue[channel] = (
+            overall_channel_to_revenue.get(channel, 0.0)
+            + attribution * revenue)
+    return overall_channel_to_revenue
+
+  def upload_report_table(
+      self,
+      client: bigquery.client.Client,
+      conversion_window_start_date: str,
+      conversion_window_end_date: str,
+      report_table: str) -> None:
+    """Uploads the path summary data to the given path_summary_table.
+
+    Args:
+      client: BigQuery Client
+      conversion_window_start_date: Start date of the report conversion window.
+      conversion_window_end_date: End date of the report conversion window.
+      report_table: Name of the table to write the report.
+    """
+    stringio = io.StringIO()
+    channel_to_attribution = self._get_channel_to_attribution()
+    channel_to_revenue = self._get_channel_to_revenue()
+    for channel, attribution in channel_to_attribution.items():
+      row = {'conversionWindowStartDate': conversion_window_start_date,
+             'conversionWindowEndDate': conversion_window_end_date,
+             'channel': channel,
+             'conversions': attribution,
+             'revenue': channel_to_revenue.get(channel, 0.0)
+             }
+      stringio.write(json.dumps(row))
+      stringio.write('\n')
+    stringio.flush()
+    stringio.seek(0)
+    job_config = bigquery.LoadJobConfig()
+    job_config.source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
+    job_config.autodetect = True
+    job_config.write_disposition = 'WRITE_TRUNCATE'
+    job = client.load_table_from_file(
+        stringio,
+        report_table,
         job_config=job_config)
     job.result()  # Waits for table load to complete.
 
