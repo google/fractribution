@@ -29,9 +29,8 @@ transaction value, lifetime value etc). This can be useful when regulation or
 data policy prevents ecommerce/revenue events from being shared with the Google
 Marketing Platform.
 
-Please see this
-[fractribution introduction](https://storage.cloud.google.com/fractribution-external-share/fractribution-introduction.pdf)
-for more background on use cases and details on the DDA algorithm.
+Please see Fractribution_Slides.pdf file in this directory for more background
+on use cases and details on the DDA algorithm.
 
 ## Using Fractribution
 
