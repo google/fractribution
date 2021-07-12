@@ -253,7 +253,7 @@ def _get_conversion_window_date_params(
 
   params['conversion_window_end_date'] = end_date.isoformat()
   start_date = end_date - datetime.timedelta(
-      days=params['conversion_window_length'])
+      days=(params['conversion_window_length'] - 1))
   params['conversion_window_start_date'] = start_date.isoformat()
   params['conversion_definition_sql'] = _strip_sql(
       jinja_env.get_template('conversion_definition.sql').render(params))
