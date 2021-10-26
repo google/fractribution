@@ -125,7 +125,7 @@ jinja_env = jinja2.Environment(
 
 def _is_valid_column_name(column_name: str) -> bool:
   """Returns True if the column_name is a valid BigQuery column name."""
-  return (len(column_name) <= 128 and
+  return (len(column_name) <= 300 and
           VALID_CHANNEL_NAME_PATTERN.match(column_name) is not None)
 
 
