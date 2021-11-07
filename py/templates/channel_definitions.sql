@@ -15,8 +15,10 @@
 # SQL mapping from channel definition to channel name.
 -- A final catch-all 'Unmatched_Channel' must be included for unmatched channels.
 -- Note: Channel names become BigQuery column names, so they must consist of letters, numbers and
---       underscores only. See https://cloud.google.com/bigquery/docs/schemas#column_names for
---       the full column name specification.
+--       underscores only. Also, column names must be at most 300 characters long. See
+--       https://cloud.google.com/bigquery/docs/schemas#column_names for the full specification.
+--
+-- Default channel definitions (see the end for campaign-level definitions)
 CASE
   WHEN
     LOWER(trafficSource.medium) IN ('cpc', 'ppc')
@@ -75,3 +77,31 @@ CASE
     THEN 'Other_Advertising'
   ELSE 'Unmatched_Channel'
 END
+
+-- Campaign-level channel definitions:
+-- Channel name format: <medium>_<source>_<campaign>, with NULLs and any illegal BigQuery Column
+--   characters replaced with '_'. If the channel name would be too long for a BigQuery column, it
+--   is cropped and appended with a unique id. By default, the channel name is 'Unmatched_Channel',
+--   whenever all of <medium>, <source> and <campaign> are NULL.
+-- CASE
+--   WHEN
+--     trafficSource.medium IS NOT NULL
+--     OR trafficSource.source IS NOT NULL
+--     OR trafficSource.campaign IS NOT NULL
+--   THEN
+--     REGEXP_REPLACE(
+--       IF(
+--         LENGTH(ARRAY_TO_STRING(
+--           [trafficSource.medium, trafficSource.source, trafficSource.campaign], '_', '')) <= 300,
+--         ARRAY_TO_STRING(
+--           [trafficSource.medium, trafficSource.source, trafficSource.campaign], '_', ''),
+--         CONCAT(LEFT(ARRAY_TO_STRING(
+--           [trafficSource.medium, trafficSource.source, trafficSource.campaign], '_', ''), 279),
+--           '_',
+--           FARM_FINGERPRINT(ARRAY_TO_STRING(
+--             [trafficSource.medium, trafficSource.source, trafficSource.campaign], '_', ''))
+--         )
+--       ), '[^a-zA-Z0-9_]','_')
+-- ELSE
+--   'Unmatched_Channel'
+-- END
