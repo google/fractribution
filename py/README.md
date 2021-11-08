@@ -125,6 +125,15 @@ script `templates/extract_fullvisitorid_userid_map.sql`.
 * ***`attribution_model`***: Which attribution model to use. Models include:
   `shapley`, `first_touch`, `last_touch`, `position_based` and `linear`.
   (Default: `shapley`).
+* ***`templates_dir`***: Optional directory containing custom SQL templates.
+  When loading a template, this directory is checked first before the default
+  ./templates directory.
+* ***`channel_definitions_sql`***: Optional argument to override the default
+  filename of the SQL template for mapping channel definitions to channel names.
+* ***`conversion_definition_sql`***: Optional argument to override the default
+  filename of the SQL template that defines a conversion.
+* ***`extract_conversions_sql`***: Optional argument to override the default
+  filename of the SQL template for extracting all conversions.
 
 ## <a id="running-fractribution"></a>Tutorial: Running Fractribution on the Google Merchandise Store.
 
