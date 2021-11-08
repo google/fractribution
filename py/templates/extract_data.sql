@@ -16,6 +16,7 @@
 -- Args:
 --  fullvisitorid_userid_map_table
 --  update_fullvisitorid_userid_map
+--  extract_conversions_sql: Custom SQL for extracting all conversions.
 --  paths_to_conversion_table
 --  paths_to_non_conversion_table
 --  path_summary_table
@@ -36,9 +37,10 @@ INSERT `{{fullvisitorid_userid_map_table}}`
 
 CREATE TEMP TABLE ConversionsByCustomerId AS (
 {% filter indent(width=2) %}
-{% include 'extract_conversions.sql'%}
+{{extract_conversions_sql}}
 {% endfilter %}
 -- Including blank line to force a newline, in case extract_conversions.sql ends with a comment.
+
 );
 
 CREATE TEMP TABLE SessionsByCustomerId AS (

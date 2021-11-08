@@ -92,6 +92,19 @@ flags.DEFINE_integer('userid_ga_hits_custom_dimension_index', None,
                      'non-Google userId. If set, a map is created between '
                      'Google fullVisitorIds and userIds. (Default: no index).')
 
+# Location of SQL templates that can be overridden by the user.
+flags.DEFINE_string('templates_dir', '',
+                    'Optional directory containing custom SQL templates. When '
+                    'loading a template, this directory is checked first '
+                    'before the default ./templates directory.')
+flags.DEFINE_string('channel_definitions_sql', 'channel_definitions.sql',
+                    'SQL template file with the mapping from channel '
+                    'definitions to channel names.')
+flags.DEFINE_string('conversion_definition_sql', 'conversion_definition.sql',
+                    'SQL template file with the definition of a conversion.')
+flags.DEFINE_string('extract_conversions_sql', 'extract_conversions.sql',
+                    'SQL template file for extracting all conversions.')
+
 
 _FULLVISITORID_USERID_MAP_TABLE = 'fullvisitorid_userid_map_table'
 _PATHS_TO_CONVERSION_TABLE = 'paths_to_conversion_table'
@@ -114,13 +127,6 @@ _PATH_TRANSFORMS_MAP = {
 }
 
 VALID_CHANNEL_NAME_PATTERN = re.compile(r'^[a-zA-Z_]\w+$', re.ASCII)
-
-jinja_env = jinja2.Environment(
-    loader=jinja2.FileSystemLoader(
-        os.path.join(os.path.dirname(__file__), 'templates')),
-    keep_trailing_newline=True,
-    lstrip_blocks=True,
-    trim_blocks=True)
 
 
 def _is_valid_column_name(column_name: str) -> bool:
@@ -255,8 +261,6 @@ def _get_conversion_window_date_params(
   start_date = end_date - datetime.timedelta(
       days=(params['conversion_window_length'] - 1))
   params['conversion_window_start_date'] = start_date.isoformat()
-  params['conversion_definition_sql'] = _strip_sql(
-      jinja_env.get_template('conversion_definition.sql').render(params))
   return params
 
 
@@ -326,7 +330,7 @@ def _extract_channels(
   Raises:
     ValueError: User-formatted error if channel is not a valid BigQuery column.
   """
-  extract_channels_sql = jinja_env.get_template(
+  extract_channels_sql = params['jinja_env'].get_template(
       'extract_channels.sql').render(params)
   channels = [
       row.channel for row in client.query(extract_channels_sql).result()]
@@ -380,32 +384,45 @@ def _get_template_params(input_params: Mapping[str, Any]) -> Dict[str, Any]:
     ValueError: User formatted if input_params contains an error.
   """
   params = {}
-  params['project_id'] = _get_param_or_die(input_params, 'project_id')
-  params['dataset'] = _get_param_or_die(input_params, 'dataset')
-  params['ga_sessions_table'] = _get_param_or_die(
-      input_params, 'ga_sessions_table')
+  params.update(input_params)
+  jinja_env = _get_jinja_env(params)
+  params['jinja_env'] = jinja_env
+  params['project_id'] = _get_param_or_die(params, 'project_id')
+  params['dataset'] = _get_param_or_die(params, 'dataset')
+  params['ga_sessions_table'] = _get_param_or_die(params, 'ga_sessions_table')
   # Check the model
-  params['attribution_model'] = input_params['attribution_model']
-  if (params['attribution_model'] not in
+  if ('attribution_model' not in params or params['attribution_model'] not in
       fractribution.Fractribution.ATTRIBUTION_MODELS):
     raise ValueError(
         'Unknown attribution_model. Use one of: ',
         fractribution.Fractribution.ATTRIBUTION_MODELS.keys())
-  params.update(_get_conversion_window_date_params(input_params))
+  # Conversion window parameters
+  params.update(_get_conversion_window_date_params(params))
   params.update(_get_output_table_ids(
       params['project_id'],
       params['dataset'],
       datetime.datetime.strptime(
           params['conversion_window_end_date'],
           '%Y-%m-%d').date().strftime('%Y%m%d')))
-  params.update(_get_path_lookback_params(input_params))
-  params.update(_get_fullvisitorid_userid_map_params(input_params))
+  # Get the conversion extraction SQL.
+  params['conversion_definition_sql'] = _strip_sql(
+      jinja_env.get_template(
+          params['conversion_definition_sql']).render(params))
+  params['extract_conversions_sql'] = _strip_sql(
+      jinja_env.get_template(
+          params['extract_conversions_sql']).render(params))
+  # Get the channel definition SQL.
+  params['channel_definitions_sql'] = _strip_sql(
+      jinja_env.get_template(
+          params['channel_definitions_sql']).render(params))
+  params.update(_get_path_lookback_params(params))
+  params.update(_get_fullvisitorid_userid_map_params(params))
   # Process the hostname restrictions.
-  if input_params.get('hostnames', None) is not None:
+  if params.get('hostnames', None) is not None:
     params['hostnames'] = ', '.join([
-        "'%s'" % hostname for hostname in input_params['hostnames'].split(',')])
+        "'%s'" % hostname for hostname in params['hostnames'].split(',')])
   # Check the path_transforms.
-  path_transform_param = _get_param_or_die(input_params, 'path_transform')
+  path_transform_param = _get_param_or_die(params, 'path_transform')
   # For backwards compatibility, if path_transform_param is a string, for
   # example, if Fractribution is invoked as a cloud function, convert it
   # to a list.
@@ -433,7 +450,7 @@ def extract_fractribution_input_data(
     params: Mapping of all template parameter names to values.
   """
   extract_data_sql = _strip_sql(
-      jinja_env.get_template('extract_data.sql').render(params))
+      params['jinja_env'].get_template('extract_data.sql').render(params))
   # Issue the query, and call result() to wait for it to finish. No results
   # are returned as all output is stored on BigQuery.
   client.query(extract_data_sql).result()
@@ -450,12 +467,12 @@ def run_fractribution(
 
   # Step 1: Extract the paths from the path_summary_table.
   frac = fractribution.Fractribution(client.query(
-      jinja_env.get_template('select_path_summary_query.sql').render(
+      params['jinja_env'].get_template('select_path_summary_query.sql').render(
           path_summary_table=params['path_summary_table'])))
   frac.run_fractribution(params['attribution_model'])
   frac.normalize_channel_to_attribution_names()
   # Step 3: Create the path_summary_table and upload the results.
-  create_path_summary_table_sql = jinja_env.get_template(
+  create_path_summary_table_sql = params['jinja_env'].get_template(
       'create_path_summary_results_table.sql').render(params)
   client.query(create_path_summary_table_sql).result()
   frac.upload_path_summary(client, params['path_summary_table'])
@@ -473,7 +490,7 @@ def generate_report(
     client: BigQuery client.
     params: Mapping of all template parameter names to values.
   """
-  client.query(jinja_env.get_template(
+  client.query(params['jinja_env'].get_template(
       'generate_report.sql').render(params)).result()
 
 
@@ -498,6 +515,31 @@ def run(input_params: Mapping[str, Any]) -> int:
   run_fractribution(client, params)
   generate_report(client, params)
   return 0
+
+
+def _get_jinja_env(input_params: Mapping[str, Any]) -> jinja2.Environment:
+  """Returns a jinja environment for template instantiation.
+
+  Args:
+    input_params: Mapping from input parameter names to values.
+      By default templates are extracted from ./templates. Include a value for
+      the parameter 'templates_dir' to provide an additional location to search
+      for templates.
+  Returns:
+    Jinja Environment.
+  """
+  loaders = []
+  if input_params['templates_dir']:
+    loaders.append(jinja2.FileSystemLoader(
+        os.path.normpath(input_params['templates_dir'])))
+  loaders.append(
+      jinja2.FileSystemLoader(
+          os.path.join(os.path.dirname(__file__), 'templates')))
+  return jinja2.Environment(
+      loader=jinja2.ChoiceLoader(loaders),
+      keep_trailing_newline=True,
+      lstrip_blocks=True,
+      trim_blocks=True)
 
 
 def main(event, unused_context=None) -> int:

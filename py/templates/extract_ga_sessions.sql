@@ -26,22 +26,21 @@
 --  fullvisitorid_userid_map_table: BigQuery table of distinct (fullVisitorId, userId) mappings
 --  conversion_window_start_date: Start date of the conversion window in %Y-%m-%d format.
 --  conversion_window_end_date: End date of the conversion window in %Y-%m-%d format.
+--  channel_definitions_sql: SQL mapping from channel definitions to channel names
 --  path_lookback_days: Number of days to extract sessions before the conversion_window_start_date.
 --  hostnames: Comma separated list of hostnames to restrict to.
 --
 -- What about channel touchpoints not recorded in Google Analytics:
 --   If you have a third party source of channel touchpoints, add a new SELECT statement below
 --   to extact the additional channels touchpoints and then UNION ALL the results with the channels
---   extracted in this script. Note that the name of the channel must still be included
---   channel_definitions.sql in a redundant WHEN ... THEN clause of the case statement, as other
---   parts of the fractribution code use channel_definitions.sql as the main source of all channels.
+--   extracted in this script.
 WITH
   FilteredSessions AS (
     SELECT
       fullVisitorId,
       TIMESTAMP_SECONDS(visitStartTime) as visitStartTimestamp,
       {% filter indent(width=6) %}
-      {% include 'channel_definitions.sql' %} AS channel,
+      {{channel_definitions_sql}} AS channel,
       {% endfilter %}
       trafficSource.referralPath,
       trafficSource.campaign,
