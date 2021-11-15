@@ -93,7 +93,7 @@ flags.DEFINE_integer('userid_ga_hits_custom_dimension_index', None,
                      'Google fullVisitorIds and userIds. (Default: no index).')
 
 # Location of SQL templates that can be overridden by the user.
-flags.DEFINE_string('templates_dir', '',
+flags.DEFINE_string('templates_dir', None,
                     'Optional directory containing custom SQL templates. When '
                     'loading a template, this directory is checked first '
                     'before the default ./templates directory.')
@@ -407,14 +407,15 @@ def _get_template_params(input_params: Mapping[str, Any]) -> Dict[str, Any]:
   # Get the conversion extraction SQL.
   params['conversion_definition_sql'] = _strip_sql(
       jinja_env.get_template(
-          params['conversion_definition_sql']).render(params))
+          params.get('conversion_definition_sql',
+                     'conversion_definition.sql')).render(params))
   params['extract_conversions_sql'] = _strip_sql(
-      jinja_env.get_template(
-          params['extract_conversions_sql']).render(params))
+      jinja_env.get_template(params.get(
+          'extract_conversions_sql', 'extract_conversions.sql')).render(params))
   # Get the channel definition SQL.
   params['channel_definitions_sql'] = _strip_sql(
-      jinja_env.get_template(
-          params['channel_definitions_sql']).render(params))
+      jinja_env.get_template(params.get(
+          'channel_definitions_sql', 'channel_definitions.sql')).render(params))
   params.update(_get_path_lookback_params(params))
   params.update(_get_fullvisitorid_userid_map_params(params))
   # Process the hostname restrictions.
@@ -529,7 +530,7 @@ def _get_jinja_env(input_params: Mapping[str, Any]) -> jinja2.Environment:
     Jinja Environment.
   """
   loaders = []
-  if input_params['templates_dir']:
+  if input_params.get('templates_dir', None):
     loaders.append(jinja2.FileSystemLoader(
         os.path.normpath(input_params['templates_dir'])))
   loaders.append(
