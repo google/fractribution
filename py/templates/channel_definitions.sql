@@ -90,16 +90,24 @@ END
 --     OR trafficSource.campaign IS NOT NULL
 --   THEN
 --     REGEXP_REPLACE(
---       IF(
---         LENGTH(ARRAY_TO_STRING(
---           [trafficSource.medium, trafficSource.source, trafficSource.campaign], '_', '')) <= 300,
---         ARRAY_TO_STRING(
---           [trafficSource.medium, trafficSource.source, trafficSource.campaign], '_', ''),
---         CONCAT(LEFT(ARRAY_TO_STRING(
---           [trafficSource.medium, trafficSource.source, trafficSource.campaign], '_', ''), 279),
+--       IF (LENGTH(
+--         ARRAY_TO_STRING([
+--           'medium', trafficSource.medium,
+--           'source', trafficSource.source,
+--           'campaign', trafficSource.campaign], '_', '')) <= 300,
+--         ARRAY_TO_STRING([
+--           'medium', trafficSource.medium,
+--           'source', trafficSource.source,
+--           'campaign', trafficSource.campaign], '_', ''),
+--         CONCAT(LEFT(ARRAY_TO_STRING([
+--           'medium', trafficSource.medium,
+--           'source', trafficSource.source,
+--           'campaign', trafficSource.campaign], '_', ''), 279),
 --           '_',
---           FARM_FINGERPRINT(ARRAY_TO_STRING(
---             [trafficSource.medium, trafficSource.source, trafficSource.campaign], '_', ''))
+--           FARM_FINGERPRINT(ARRAY_TO_STRING([
+--             'medium', trafficSource.medium,
+--             'source', trafficSource.source,
+--             'campaign', trafficSource.campaign], '_', ''))
 --         )
 --       ), '[^a-zA-Z0-9_]','_')
 -- ELSE
