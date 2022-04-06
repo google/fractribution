@@ -244,11 +244,11 @@ class Fractribution(object):
             path_summary.channel_to_attribution[channel])
       path_summary.channel_to_attribution = channel_to_attribution
 
-  def _path_summary_to_json_stringio(self) -> io.StringIO:
-    """Returns a StringIO file with one JSON-encoded _PathSummary per line."""
+  def _path_summary_to_json_stringio(self) -> io.BytesIO:
+    """Returns a BytesIO file with one JSON-encoded _PathSummary per line."""
 
     default_attribution = {UNMATCHED_CHANNEL: 1.0}
-    stringio = io.StringIO()
+    bytesio = io.BytesIO()
     for path_tuple, path_summary in self._path_tuple_to_summary.items():
       row = {'transformedPath': self._get_path_string(path_tuple),
              'conversions': path_summary.conversions,
@@ -258,11 +258,11 @@ class Fractribution(object):
         row.update(path_summary.channel_to_attribution)
       else:
         row.update(default_attribution)
-      stringio.write(json.dumps(row))
-      stringio.write('\n')
-    stringio.flush()
-    stringio.seek(0)
-    return stringio
+      bytesio.write(json.dumps(row).encode('utf-8'))
+      bytesio.write('\n'.encode('utf-8'))
+    bytesio.flush()
+    bytesio.seek(0)
+    return bytesio
 
   def upload_path_summary(
       self, client: bigquery.client.Client, path_summary_table: str) -> None:
@@ -334,7 +334,7 @@ class Fractribution(object):
       conversion_window_end_date: End date of the report conversion window.
       report_table: Name of the table to write the report.
     """
-    stringio = io.StringIO()
+    bytesio = io.BytesIO()
     channel_to_attribution = self._get_channel_to_attribution()
     channel_to_revenue = self._get_channel_to_revenue()
     for channel, attribution in channel_to_attribution.items():
@@ -344,16 +344,16 @@ class Fractribution(object):
              'conversions': attribution,
              'revenue': channel_to_revenue.get(channel, 0.0)
              }
-      stringio.write(json.dumps(row))
-      stringio.write('\n')
-    stringio.flush()
-    stringio.seek(0)
+      bytesio.write(json.dumps(row).encode('utf-8'))
+      bytesio.write('\n'.encode('utf-8'))
+    bytesio.flush()
+    bytesio.seek(0)
     job_config = bigquery.LoadJobConfig()
     job_config.source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
     job_config.autodetect = True
     job_config.write_disposition = 'WRITE_TRUNCATE'
     job = client.load_table_from_file(
-        stringio,
+        bytesio,
         report_table,
         job_config=job_config)
     job.result()  # Waits for table load to complete.
